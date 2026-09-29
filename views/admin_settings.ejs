@@ -33,7 +33,8 @@
         <div class="tiny muted">ค่าเริ่มต้น <code>http://127.0.0.1:11434/v1</code> = Ollama ที่ติดมากับ Exami ในเครื่องเดียวกัน (ไม่ต้องแก้) · ถ้ามีเครื่อง GPU แยก ใส่ เช่น <code>http://192.168.1.50:11434/v1</code></div></div>
       <div class="grid-2">
         <div class="field"><label>API Key <span class="hint">(เว้นว่างได้ถ้าใช้ Ollama)</span></label><input type="password" name="ai_api_key" value="<%= s.ai_api_key ? '********' : '' %>" autocomplete="off"></div>
-        <div class="field"><label>เวลารอ AI สูงสุด (วินาที)</label><input type="number" min="30" name="ai_timeout_sec" value="<%= s.ai_timeout_sec %>"></div>
+        <div class="field"><label>รอ AI ตอบได้นานสุด (วินาที)</label><input type="number" min="30" name="ai_timeout_sec" value="<%= s.ai_timeout_sec %>">
+          <div class="tiny muted">ยกเลิกเมื่อ AI <b>ไม่ขยับเลย</b>นานเกินนี้ (ถ้ายังเขียนอยู่จะรอต่อ แม้เครื่องช้า)</div></div>
       </div>
       <a class="btn sm" href="/admin/ai">🤖 เลือก / ดาวน์โหลด / ทดสอบโมเดล AI →</a>
     </div>

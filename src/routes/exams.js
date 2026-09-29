@@ -87,7 +87,7 @@ r.post('/api/ai/generate', requireLogin, (req, res) => {
 r.get('/api/jobs/:id', requireLogin, (req, res) => {
   const j = db.prepare('SELECT * FROM jobs WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
   if (!j) return res.status(404).json({ error: 'not found' });
-  res.json({ id: j.id, status: j.status, error: j.error, result: parseJSON(j.result, null), position: ai.queuePosition(j.id) });
+  res.json({ id: j.id, status: j.status, error: j.error, result: parseJSON(j.result, null), position: ai.queuePosition(j.id), progress: ai.jobProgress(j.id) });
 });
 
 r.get('/api/ai/status', requireLogin, async (req, res) => res.json(await ai.status()));

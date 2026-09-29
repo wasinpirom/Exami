@@ -160,6 +160,19 @@ function markRecosSeen() {
   (n.recos || []).forEach(x => seen.add(x));
   setSetting('ai_reco_seen', JSON.stringify([...seen]));
 }
+// Load the active model into RAM so the first teacher request doesn't wait for it
+async function warmUp(model = AI.model) {
+  try {
+    await ollama('/api/generate', { method: 'POST', body: JSON.stringify({ model, prompt: '', keep_alive: '30m' }) }, 180e3);
+    console.log('[ai] model loaded into memory:', model);
+  } catch (e) { console.log('[ai] warm-up skipped:', e.message); }
+}
+
+// Last lines of the built-in Ollama log (for troubleshooting from the admin page)
+function ollamaLog(lines = 80) {
+  try { return fs.readFileSync('/tmp/ollama.log', 'utf8').split('\n').slice(-lines).join('\n'); } catch { return ''; }
+}
+
 // First boot: download the active/default model automatically (no manual step needed)
 async function ensureDefaultModel(tries = 60) {
   if (!AI.enabled) return;
@@ -168,8 +181,9 @@ async function ensureDefaultModel(tries = 60) {
     const want = normalizeName(AI.model);
     if (!installed.some(m => normalizeName(m.name) === want)) {
       console.log('[ai] downloading default model', AI.model, '...');
-      pull(AI.model);
-    }
+      const st = pull(AI.model);
+      const wait = setInterval(() => { if (st.done) { clearInterval(wait); if (!st.error) warmUp(); } }, 5000);
+    } else warmUp();
   } catch (e) {
     // Ollama still starting (or an external non-Ollama API is used) → retry for ~15 minutes
     if (tries > 0) setTimeout(() => ensureDefaultModel(tries - 1), 15e3);
@@ -182,4 +196,4 @@ function startScheduler() {
   setInterval(runCheck, 12 * 3600e3);
 }
 
-module.exports = { ollamaUrl, ensureDefaultModel, listInstalled, pull, pullStatus, remove, checkUpdates, recommendations, recommendUrl, hardware, fit, notice, noticeCount, runCheck, markRecosSeen, startScheduler, normalizeName };
+module.exports = { ollamaUrl, ensureDefaultModel, warmUp, ollamaLog, listInstalled, pull, pullStatus, remove, checkUpdates, recommendations, recommendUrl, hardware, fit, notice, noticeCount, runCheck, markRecosSeen, startScheduler, normalizeName };

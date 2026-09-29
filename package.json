@@ -1,6 +1,6 @@
 {
   "name": "exami",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Exami — ระบบสอบออนไลน์ + คอร์สเรียน โอเพนซอร์ส พร้อม AI (Ollama)",
   "main": "src/server.js",
   "scripts": {

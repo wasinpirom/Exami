@@ -30,7 +30,7 @@ function grader() {
       this.aiBusy = true; this.aiMsg = 'ส่งงานให้ AI...';
       try {
         const { job_id } = await api('/api/attempts/' + this.att.id + '/ai-grade', { body: { regrade } });
-        await waitJob(job_id, j => this.aiMsg = j.status === 'queued' ? 'รอคิว AI...' : '🤖 AI กำลังอ่านและให้คะแนน...');
+        await waitJob(job_id, j => this.aiMsg = j.status === 'queued' ? 'รอคิว AI...' : (j.progress || '🤖 AI กำลังอ่านและให้คะแนน...'));
         this.aiMsg = 'เสร็จแล้ว กำลังโหลดใหม่...'; location.reload();
       } catch (e) { this.aiMsg = '❌ ' + e.message; this.aiBusy = false; }
     },

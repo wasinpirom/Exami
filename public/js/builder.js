@@ -159,7 +159,7 @@ function builder() {
       try {
         const { job_id } = await api('/api/ai/generate', { body: { topic: a.topic, source_text: a.source_text, count: a.count, types: a.types, difficulty: a.difficulty, language: a.language, points: a.points } });
         const res = await waitJob(job_id, (j) => {
-          a.status = j.status === 'queued' ? `รอคิว AI${j.position ? ' (ลำดับที่ ' + j.position + ')' : ''}...` : 'AI กำลังคิดคำถาม... (อาจใช้เวลา 30 วินาที – 3 นาที)';
+          a.status = j.status === 'queued' ? `รอคิว AI${j.position ? ' (ลำดับที่ ' + j.position + ')' : ''}...` : (j.progress || '⏳ กำลังโหลดโมเดล AI เข้าหน่วยความจำ... (ครั้งแรกอาจใช้เวลาสักครู่)');
         });
         a.results = (res || []).map(q => ({ ...toEditor(q), pick: true }));
         a.status = a.results.length ? `ได้ ${a.results.length} ข้อ — ตรวจทานแล้วกดเพิ่ม` : 'AI ไม่ได้สร้างคำถาม ลองปรับหัวข้อแล้วลองใหม่';
@@ -193,7 +193,7 @@ function builder() {
       const m = this.imp; m.error = ''; m.results = []; m.busy = true; m.status = 'ส่งให้ AI แปลง...';
       try {
         const { job_id } = await api('/api/ai/generate', { body: { mode: 'convert', source_text: m.text, count: 100 } });
-        const res = await waitJob(job_id, j => m.status = j.status === 'queued' ? 'รอคิว AI...' : '🤖 AI กำลังอ่านข้อสอบและหาเฉลย...');
+        const res = await waitJob(job_id, j => m.status = j.status === 'queued' ? 'รอคิว AI...' : (j.progress || '🤖 AI กำลังอ่านข้อสอบและหาเฉลย...'));
         m.results = (res || []).map(q => ({ ...toEditor(q), pick: true }));
         m.status = m.results.length ? `AI แปลงได้ ${m.results.length} ข้อ — ตรวจทานเฉลยก่อนเพิ่ม` : 'AI แปลงไม่สำเร็จ';
       } catch (e) { m.error = e.message; m.status = ''; }

@@ -13,28 +13,112 @@ const AI = {
   get timeoutMs() { return Math.max(30, Number(getSettings().ai_timeout_sec) || 300) * 1000; },
 };
 
-async function chat(messages, { json = true, temperature = 0.4, model } = {}) {
-  model = model || AI.model;
-  // Qwen3-style "thinking" models: ask for a direct answer (faster, cleaner JSON)
-  if (/qwen3/i.test(model) && messages.length) messages = messages.map((m, i) => i === messages.length - 1 ? { ...m, content: m.content + ' /no_think' } : m);
-  if (!AI.enabled) throw new Error('AI ถูกปิดใช้งานบนเซิร์ฟเวอร์นี้');
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), AI.timeoutMs);
+// ---------- Is the AI server an Ollama? (then use its native API: real "think:false", streaming, limits) ----------
+let ollamaCache = { root: null, ok: false, at: 0 };
+async function isOllama() {
+  const root = AI.baseUrl.replace(/\/v1$/, '');
+  if (ollamaCache.root === root && Date.now() - ollamaCache.at < 300e3) return ollamaCache.ok;
+  let ok = false;
   try {
-    const body = { model, messages, temperature, stream: false };
-    if (json) body.response_format = { type: 'json_object' };
+    const c = new AbortController(); const t = setTimeout(() => c.abort(), 3000);
+    const r = await fetch(root + '/api/version', { signal: c.signal }); clearTimeout(t);
+    ok = r.ok && !!(await r.json()).version;
+  } catch { ok = false; }
+  ollamaCache = { root, ok, at: Date.now() };
+  return ok;
+}
+const CONNECT_ERR = 'เชื่อมต่อ AI server ไม่ได้ — ตรวจสอบว่า Ollama ทำงานอยู่ (หลัง deploy ครั้งแรกอาจต้องรอสักครู่)';
+const isConnErr = (e) => e.message === 'fetch failed' || (e.cause && /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET/.test(String(e.cause.code)));
+
+/**
+ * Ask the AI. Streams tokens so a slow CPU is fine: we only give up when the AI produces
+ * nothing for `timeout` seconds (idle), or after a hard cap of 30 minutes.
+ * opts: { json, temperature, model, maxTokens, onProgress(tokens, phase) }
+ */
+async function chat(messages, opts = {}) {
+  if (!AI.enabled) throw new Error('AI ถูกปิดใช้งานบนเซิร์ฟเวอร์นี้');
+  const o = { json: true, temperature: 0.4, maxTokens: 2048, ...opts, model: opts.model || AI.model };
+  if (await isOllama()) return chatOllama(messages, o);
+  return chatOpenAI(messages, o);
+}
+
+async function chatOllama(messages, o, allowThinkFlag = true) {
+  const root = AI.baseUrl.replace(/\/v1$/, '');
+  const ctrl = new AbortController();
+  const idleMs = AI.timeoutMs, hardCap = setTimeout(() => ctrl.abort('cap'), 30 * 60e3);
+  let idle = setTimeout(() => ctrl.abort('idle'), idleMs + 120e3);   // first token may wait for model loading
+  const bump = () => { clearTimeout(idle); idle = setTimeout(() => ctrl.abort('idle'), idleMs); };
+  const body = {
+    model: o.model, messages, stream: true, keep_alive: '30m',
+    options: { temperature: o.temperature, num_predict: o.maxTokens, num_ctx: 8192 },
+  };
+  if (allowThinkFlag) body.think = false;            // turn off "thinking" (qwen3, deepseek-r1, …) → much faster
+  if (o.json) body.format = 'json';
+  let content = '', tokens = 0, thinking = 0;
+  try {
+    const r = await fetch(root + '/api/chat', { method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) {
+      const txt = (await r.text()).slice(0, 300);
+      if (allowThinkFlag && /think/i.test(txt)) { clearTimeout(idle); clearTimeout(hardCap); return chatOllama(messages, o, false); }  // model without thinking support
+      if (r.status === 404 || /not found/i.test(txt)) throw new Error(`ยังไม่พบโมเดล ${o.model} บน AI server (อาจกำลังดาวน์โหลดอยู่ — ดูที่หน้า จัดการโมเดล AI)`);
+      throw new Error(`AI server ตอบกลับ ${r.status}: ${txt}`);
+    }
+    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!line) continue;
+        const ev = parseJSON(line, {});
+        if (ev.error) throw new Error(ev.error);
+        const piece = (ev.message && ev.message.content) || '';
+        if (ev.message && ev.message.thinking) { thinking++; bump(); o.onProgress && o.onProgress(tokens, 'thinking', thinking); }
+        if (piece) {
+          content += piece; tokens++; bump();
+          if (o.onProgress && tokens % 5 === 0) o.onProgress(tokens, 'writing');
+          // JSON finished but the model keeps emitting blank space → stop early
+          if (o.json && !piece.trim() && /\s{8,}$/.test(content) && parseJSON(content.trim(), null)) { ctrl.abort('done'); return content.trim(); }
+        }
+        if (ev.done) return content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      }
+    }
+    const out = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    if (!out) throw new Error(`AI ไม่ได้ส่งคำตอบกลับมา (โมเดล ${o.model}) — ลองใหม่ หรือดูบันทึก Ollama ที่หน้า จัดการโมเดล AI`);
+    return out;
+  } catch (e) {
+    if (ctrl.signal.aborted && ctrl.signal.reason === 'done') return content.trim();
+    if (e.name === 'AbortError' || ctrl.signal.aborted) {
+      if (content.trim() && parseJSON(content.trim(), null)) return content.trim();
+      throw new Error(ctrl.signal.reason === 'cap' ? 'AI ใช้เวลานานเกิน 30 นาที' :
+        `AI ไม่ตอบสนองเกิน ${Math.round(idleMs / 1000)} วินาที (${tokens ? 'หยุดกลางคัน' : 'ยังไม่เริ่มตอบ'}) — เซิร์ฟเวอร์อาจ RAM/CPU ไม่พอสำหรับโมเดล ${o.model}`);
+    }
+    if (isConnErr(e)) throw new Error(CONNECT_ERR);
+    throw e;
+  } finally { clearTimeout(idle); clearTimeout(hardCap); }
+}
+
+// Any OpenAI-compatible server (Groq, OpenRouter, vLLM, LM Studio…)
+async function chatOpenAI(messages, o) {
+  if (/qwen3/i.test(o.model) && messages.length) messages = messages.map((m, i) => i === messages.length - 1 ? { ...m, content: m.content + ' /no_think' } : m);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), Math.max(AI.timeoutMs, 120e3));
+  try {
+    const body = { model: o.model, messages, temperature: o.temperature, max_tokens: o.maxTokens, stream: false };
+    if (o.json) body.response_format = { type: 'json_object' };
     const r = await fetch(AI.baseUrl + '/chat/completions', {
       method: 'POST', signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI.apiKey },
       body: JSON.stringify(body),
     });
-    if (r.status === 404) throw new Error(`ยังไม่พบโมเดล ${model} บน AI server (ครั้งแรกระบบกำลังดาวน์โหลดโมเดล ลองใหม่อีกสักครู่)`);
+    if (r.status === 404) throw new Error(`ยังไม่พบโมเดล ${o.model} บน AI server`);
     if (!r.ok) throw new Error(`AI server ตอบกลับ ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const j = await r.json();
     return String(j.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
   } catch (e) {
     if (e.name === 'AbortError') throw new Error('AI ใช้เวลานานเกินไป (timeout)');
-    if (e.message === 'fetch failed' || (e.cause && /ECONNREFUSED|ENOTFOUND|EAI_AGAIN/.test(String(e.cause.code)))) throw new Error('เชื่อมต่อ AI server ไม่ได้ — ตรวจสอบว่า Ollama ทำงานอยู่ (หลัง deploy ครั้งแรกอาจต้องรอสักครู่)');
+    if (isConnErr(e)) throw new Error(CONNECT_ERR);
     throw e;
   } finally { clearTimeout(t); }
 }
@@ -90,16 +174,18 @@ async function generateQuestions(input, opts = {}) {
     input.topic ? `Topic: ${input.topic}` : '',
     input.source_text ? `Base the questions ONLY on this material:\n"""\n${String(input.source_text).slice(0, 12000)}\n"""` : '',
   ].filter(Boolean).join('\n');
-  const out = extractJSON(await chat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: convert ? 0.1 : 0.6, model: opts.model }));
+  const maxTokens = convert ? 8192 : Math.min(8192, 450 * count + 500);
+  const onProgress = opts.progress ? (n, phase) => opts.progress(phase === 'thinking' ? '🤔 AI กำลังคิด...' : `✍️ AI กำลังเขียนคำถาม... (${n} tokens)`) : null;
+  const out = extractJSON(await chat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: convert ? 0.1 : 0.6, model: opts.model, maxTokens, onProgress }));
   const list = Array.isArray(out) ? out : (out.questions || []);
   const pts = Number(input.points) || 1;
   return list.map(q => normalizeGenerated(q, pts)).filter(Boolean).slice(0, count);
 }
 
 // Try a model with a small real task (admin "ทดสอบโมเดล")
-async function testModel(model) {
+async function testModel(model, progress) {
   const t0 = Date.now();
-  const questions = await generateQuestions({ topic: 'ระบบสุริยะ (Solar system) สำหรับนักเรียนมัธยม', count: 2, types: ['single', 'truefalse'], language: 'th' }, { model });
+  const questions = await generateQuestions({ topic: 'ระบบสุริยะ (Solar system) สำหรับนักเรียนมัธยม', count: 2, types: ['single', 'truefalse'], language: 'th' }, { model, progress });
   return { model, ms: Date.now() - t0, questions };
 }
 
@@ -153,7 +239,7 @@ async function gradeAnswer(answerId) {
     a.type === 'file' ? 'Note: the student uploaded a file; you cannot open it. Judge only from the file name and note, and say that the teacher should check the file.' : '',
     `Student answer:\n"""\n${resp.slice(0, 8000)}\n"""`,
   ].filter(Boolean).join('\n');
-  const out = extractJSON(await chat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.1 }));
+  const out = extractJSON(await chat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.1, maxTokens: 700 }));
   let score = Number(out.score); if (!isFinite(score)) score = 0;
   score = round2(Math.min(Math.max(score, 0), a.points));
   db.prepare(`UPDATE answers SET ai_score=?, ai_feedback=?, status=CASE WHEN status='graded' THEN status ELSE 'ai' END WHERE id=?`)
@@ -166,10 +252,11 @@ function gradableAnswerIds(attemptId, { includeAiGraded = false } = {}) {
     .all(attemptId).map(r => r.id);
 }
 
-async function gradeAttempt(attemptId, opts) {
+async function gradeAttempt(attemptId, opts = {}) {
   const ids = gradableAnswerIds(attemptId, opts);
   let done = 0, errors = [];
-  for (const id of ids) {
+  for (const [k, id] of ids.entries()) {
+    if (opts.progress) opts.progress(`🤖 AI กำลังตรวจข้อเขียน ${k + 1}/${ids.length}${opts.prefix || ''}`);
     try { await gradeAnswer(id); done++; } catch (e) { errors.push(e.message); if (/เชื่อมต่อ|ปิดใช้งาน/.test(e.message)) break; }
   }
   recomputeAttempt(attemptId);
@@ -180,14 +267,15 @@ async function gradeAttempt(attemptId, opts) {
 // ---------------- Simple in-process job queue (AI is slow) ----------------
 const queue = []; let running = 0;
 const CONC = Number(process.env.AI_CONCURRENCY || 1);
+const progressOf = {};   // job id → latest progress text (shown live in the UI)
 const handlers = {
-  generate: (input) => generateQuestions(input),
-  test_model: (input) => testModel(input.model),
-  grade_attempt: (input) => gradeAttempt(input.attempt_id, { includeAiGraded: !!input.regrade }),
-  grade_exam: async (input) => {
+  generate: (input, ctx) => generateQuestions(input, { progress: ctx.progress }),
+  test_model: (input, ctx) => testModel(input.model, ctx.progress),
+  grade_attempt: (input, ctx) => gradeAttempt(input.attempt_id, { includeAiGraded: !!input.regrade, progress: ctx.progress }),
+  grade_exam: async (input, ctx) => {
     const atts = db.prepare(`SELECT id FROM attempts WHERE exam_id=? AND status='submitted' ${input.only_pending ? 'AND pending_count>0' : ''}`).all(input.exam_id);
     let graded = 0;
-    for (const at of atts) { const r = await gradeAttempt(at.id, { includeAiGraded: !!input.regrade }); graded += r.graded; }
+    for (const [k, at] of atts.entries()) { const r = await gradeAttempt(at.id, { includeAiGraded: !!input.regrade, progress: ctx.progress, prefix: ` (ผู้สอบคนที่ ${k + 1}/${atts.length})` }); graded += r.graded; }
     return { attempts: atts.length, graded };
   },
 };
@@ -204,15 +292,16 @@ function pump() {
       const job = db.prepare('SELECT * FROM jobs WHERE id=?').get(id);
       db.prepare(`UPDATE jobs SET status='running', updated_at=datetime('now') WHERE id=?`).run(id);
       try {
-        const result = await handlers[job.type](parseJSON(job.input, {}));
+        const result = await handlers[job.type](parseJSON(job.input, {}), { progress: (t) => { progressOf[id] = t; } });
         db.prepare(`UPDATE jobs SET status='done', result=?, updated_at=datetime('now') WHERE id=?`).run(JSON.stringify(result ?? null), id);
       } catch (e) {
         console.error('[ai job]', job.type, e.message);
         db.prepare(`UPDATE jobs SET status='error', error=?, updated_at=datetime('now') WHERE id=?`).run(e.message, id);
-      } finally { running--; pump(); }
+      } finally { running--; setTimeout(() => delete progressOf[id], 60e3); pump(); }
     })();
   }
 }
 const queuePosition = (id) => queue.indexOf(Number(id)) + 1;
+const jobProgress = (id) => progressOf[id] || null;
 
-module.exports = { AI, chat, status, generateQuestions, gradeAttempt, enqueue, queuePosition };
+module.exports = { AI, chat, isOllama, jobProgress, status, generateQuestions, gradeAttempt, enqueue, queuePosition };

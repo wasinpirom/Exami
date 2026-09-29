@@ -81,10 +81,13 @@ r.post('/api/admin/ai/use', async (req, res) => {
   const installed = await models.listInstalled();
   if (!installed.some(m => models.normalizeName(m.name) === models.normalizeName(name))) return res.status(400).json({ error: 'ต้องดาวน์โหลดโมเดลนี้ก่อน' });
   setSetting('ai_model', name.replace(/:latest$/, ''));
+  models.warmUp(name);
   res.json(await aiState());
 });
 r.post('/api/admin/ai/delete', async (req, res) => { await models.remove(String((req.body || {}).name || '')); res.json(await aiState()); });
 r.post('/api/admin/ai/test', (req, res) => res.json({ job_id: ai.enqueue(req.user.id, 'test_model', { model: String((req.body || {}).name || ai.AI.model) }) }));
 r.post('/api/admin/ai/check', async (req, res) => { await models.runCheck(); res.json(await aiState()); });
+
+r.get('/api/admin/ai/log', (req, res) => res.json({ log: models.ollamaLog(120) }));
 
 module.exports = r;

@@ -62,7 +62,7 @@ async function aiGradeAll() {
   b.disabled = true; s.classList.remove('hidden'); s.textContent = '🤖 ส่งงานให้ AI แล้ว กำลังตรวจ... (ใช้เวลาตามจำนวนข้อเขียน)';
   try {
     const { job_id } = await api('/api/exams/<%= exam.id %>/ai-grade', { body: {} });
-    const r = await waitJob(job_id, j => { s.textContent = j.status === 'queued' ? '⏳ รอคิว AI...' : '🤖 AI กำลังตรวจ...'; });
+    const r = await waitJob(job_id, j => { s.textContent = j.status === 'queued' ? '⏳ รอคิว AI...' : (j.progress || '🤖 AI กำลังตรวจ...'); });
     s.textContent = `✅ AI ตรวจเสร็จ ${r.graded} คำตอบ — กำลังโหลดใหม่`; setTimeout(() => location.reload(), 1200);
   } catch (e) { s.className = 'alert bad small'; s.textContent = e.message; b.disabled = false; }
 }

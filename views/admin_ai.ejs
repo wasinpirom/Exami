@@ -3,7 +3,7 @@
 <script>
 function aiAdmin() {
   return {
-    s: null, loading: true, err: '', custom: '', testing: {}, tests: {}, checking: false, busy: {},
+    s: null, loading: true, err: '', custom: '', log: null, testing: {}, tests: {}, checking: false, busy: {},
     async init() { await this.load(); setInterval(() => { if (this.s && this.s.pulls.some(p => !p.done)) this.load(); }, 1500); },
     async load() { try { this.s = await api('/api/admin/ai/state'); this.err = ''; } catch (e) { this.err = e.message; } this.loading = false; },
     gb(b) { return (b / 1024 ** 3).toFixed(1) + ' GB'; },
@@ -26,10 +26,11 @@ function aiAdmin() {
       this.testing[name] = 'ส่งงานทดสอบ...'; this.tests[name] = null;
       try {
         const { job_id } = await api('/api/admin/ai/test', { body: { name } });
-        this.tests[name] = await waitJob(job_id, j => this.testing[name] = j.status === 'queued' ? 'รอคิว...' : '🤖 กำลังให้โมเดลลองออกข้อสอบ...');
+        this.tests[name] = await waitJob(job_id, j => this.testing[name] = j.status === 'queued' ? 'รอคิว...' : (j.progress || '⏳ กำลังโหลดโมเดลเข้าหน่วยความจำ...'));
       } catch (e) { this.tests[name] = { error: e.message }; }
       this.testing[name] = null;
     },
+    async loadLog() { try { this.log = (await api('/api/admin/ai/log')).log; } catch (e) { this.log = e.message; } },
     async check() { this.checking = true; try { this.s = await api('/api/admin/ai/check', { body: {} }); toast('ตรวจสอบเสร็จแล้ว'); } catch (e) { alert(e.message); } this.checking = false; },
     fitLabel(f) { return { good: ['ok', '✓ RAM พอ'], tight: ['warn', '⚠ RAM พอดีๆ'], too_big: ['bad', '✕ RAM ไม่พอ'], unknown: ['', '?'] }[f]; },
     stars(n) { return '★'.repeat(n || 0) + '☆'.repeat(5 - (n || 0)); },
@@ -116,6 +117,11 @@ function aiAdmin() {
         </template>
       </div>
 
+      <div class="card mt2">
+        <div class="row between"><h3 style="margin:0">🩺 บันทึกการทำงานของ AI (Ollama log)</h3><button class="btn sm" @click="loadLog()">โหลดล่าสุด</button></div>
+        <p class="small muted">ใช้ดูสาเหตุเมื่อ AI ช้าหรือ error — ส่งข้อความส่วนนี้ให้ผู้ดูแลระบบ/ผู้พัฒนาดูได้</p>
+        <pre x-show="log !== null" class="small" style="background:#0b0e1f;color:#cfd3ff;padding:12px;border-radius:12px;max-height:320px;overflow:auto;white-space:pre-wrap" x-text="log || '(ยังไม่มีบันทึก)'"></pre>
+      </div>
       <div class="card mt2">
         <h3>➕ ดาวน์โหลดโมเดลอื่นจาก Ollama</h3>
         <p class="small muted">ดูรายชื่อได้ที่ <a href="https://ollama.com/library" target="_blank" rel="noopener">ollama.com/library</a> แล้วพิมพ์ชื่อพร้อม tag เช่น <code>qwen3:8b</code></p>

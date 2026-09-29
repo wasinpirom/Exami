@@ -19,7 +19,8 @@ function ownExam(req, res) {
 }
 
 r.post('/exams/new', requireLogin, (req, res) => {
-  const id = svc.createExam(req.user.id, { title: String(req.body.title || '').trim() || 'แบบทดสอบใหม่' });
+  const n = db.prepare('SELECT COUNT(*) c FROM exams WHERE owner_id=?').get(req.user.id).c + 1;
+  const id = svc.createExam(req.user.id, { title: String(req.body.title || '').trim().slice(0, 300) || `แบบทดสอบใหม่ ${n}` });
   res.redirect(`/exams/${id}/edit`);
 });
 

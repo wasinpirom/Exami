@@ -146,15 +146,16 @@ async function status() {
 
 // ---------------- Question generation ----------------
 const TYPE_SPEC = {
-  single: '{"type":"single","prompt":"...","options":["A","B","C","D"],"correct_index":0}',
-  multiple: '{"type":"multiple","prompt":"...","options":["A","B","C","D"],"correct_indices":[0,2]}',
-  truefalse: '{"type":"truefalse","prompt":"statement...","correct":true}',
-  matching: '{"type":"matching","prompt":"จับคู่ต่อไปนี้","pairs":[{"left":"...","right":"..."}]}',
-  ordering: '{"type":"ordering","prompt":"เรียงลำดับ...","items":["first","second","third"]}',
-  short: '{"type":"short","prompt":"...","accepted":["answer","alternative"]}',
-  fillblank: '{"type":"fillblank","prompt":"เติมคำในช่องว่าง","text":"sentence with {{answer}} in double braces"}',
-  essay: '{"type":"essay","prompt":"...","rubric":"criteria for full marks","sample_answer":"..."}',
+  single: '{"type":"single","prompt":"<question>","options":["<full text of choice 1>","<full text of choice 2>","<full text of choice 3>","<full text of choice 4>"],"correct_index":<index of the correct choice, 0-3>,"explanation":"<why>"}',
+  multiple: '{"type":"multiple","prompt":"<question>","options":["<full text of choice 1>","<full text of choice 2>","<full text of choice 3>","<full text of choice 4>"],"correct_indices":[<indexes of ALL correct choices>],"explanation":"<why>"}',
+  truefalse: '{"type":"truefalse","prompt":"<a statement that is either true or false>","correct":<true or false>,"explanation":"<why>"}',
+  matching: '{"type":"matching","prompt":"<instruction>","pairs":[{"left":"<term>","right":"<its matching definition>"}, ... 3-5 pairs]}',
+  ordering: '{"type":"ordering","prompt":"<what to put in order>","items":["<step that comes 1st>","<step 2nd>","<step 3rd>","<step 4th>"]}',
+  short: '{"type":"short","prompt":"<question with a short exact answer>","accepted":["<answer>","<acceptable alternative spelling>"]}',
+  fillblank: '{"type":"fillblank","prompt":"เติมคำในช่องว่าง","text":"<a sentence where each missing word is written inside double braces like {{word}}>"}',
+  essay: '{"type":"essay","prompt":"<open question>","rubric":"<criteria for full marks>","sample_answer":"<model answer>"}',
 };
+const EXAMPLE = '{"questions":[{"type":"single","prompt":"เมืองหลวงของประเทศญี่ปุ่นคือเมืองใด","options":["โอซาก้า","โตเกียว","เกียวโต","ซัปโปโร"],"correct_index":1,"explanation":"โตเกียวเป็นเมืองหลวงของญี่ปุ่น"}]}';
 
 async function generateQuestions(input, opts = {}) {
   const convert = input.mode === 'convert';
@@ -162,7 +163,7 @@ async function generateQuestions(input, opts = {}) {
   const types = convert ? Object.keys(TYPE_SPEC) : (input.types || ['single']).filter(t => TYPE_SPEC[t]);
   if (!types.length) types.push('single');
   const lang = input.language === 'en' ? 'English' : 'Thai (ภาษาไทย)';
-  const sys = `You are an expert teacher who writes high-quality exam questions. Always reply with ONE JSON object only: {"questions":[...]}. Each question must follow exactly one of these formats:\n${types.map(t => TYPE_SPEC[t]).join('\n')}\nEvery question may also include "explanation" (why the answer is correct). ${convert ? 'Keep the original language and wording.' : `Write all question text in ${lang}. Facts must be accurate.`}`;
+  const sys = `You are an expert teacher who writes high-quality exam questions. Always reply with ONE JSON object only: {"questions":[...]}. Each question must follow exactly one of these formats:\n${types.map(t => TYPE_SPEC[t]).join('\n')}\nReplace every <...> with real content. Choices must be complete, meaningful answers — NEVER just letters like "A", "B", "C", "D" or "ก", "ข". Example of ONE correct question (format only, do not copy its content): ${EXAMPLE}. ${convert ? 'Keep the original language and wording.' : `Write all question text in ${lang}. Facts must be accurate.`}`;
   const user = convert ? [
     'Convert the following existing exam (copied from Word/PDF) into the JSON format. Do NOT invent new questions and keep the original wording.',
     'Detect the correct answers from answer keys, marks like * or (✓), or "ตอบ/เฉลย/Answer" lines. If a question has no answer key, pick the most correct answer yourself.',
@@ -176,10 +177,22 @@ async function generateQuestions(input, opts = {}) {
   ].filter(Boolean).join('\n');
   const maxTokens = convert ? 8192 : Math.min(8192, 450 * count + 500);
   const onProgress = opts.progress ? (n, phase) => opts.progress(phase === 'thinking' ? '🤔 AI กำลังคิด...' : `✍️ AI กำลังเขียนคำถาม... (${n} tokens)`) : null;
-  const out = extractJSON(await chat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: convert ? 0.1 : 0.6, model: opts.model, maxTokens, onProgress }));
-  const list = Array.isArray(out) ? out : (out.questions || []);
   const pts = Number(input.points) || 1;
-  return list.map(q => normalizeGenerated(q, pts)).filter(Boolean).slice(0, count);
+  const ask = async (extra) => {
+    const out = extractJSON(await chat([{ role: 'system', content: sys }, { role: 'user', content: user + (extra || '') }], { temperature: convert ? 0.1 : 0.6, model: opts.model, maxTokens, onProgress }));
+    const list = Array.isArray(out) ? out : (out.questions || []);
+    return list.map(q => normalizeGenerated(q, pts)).filter(Boolean);
+  };
+  let result = await ask();
+  // small models sometimes return placeholder choices ("A","B"…) → those get dropped; ask once more for the missing ones
+  if (!convert && result.length < count) {
+    try {
+      const more = await ask(`\nIMPORTANT: every answer choice must be real content, not letters. Create ${count - result.length} question(s).`);
+      result = result.concat(more);
+    } catch (e) { if (!result.length) throw e; }
+  }
+  if (!result.length) throw new Error('AI สร้างคำถามที่ใช้ได้ไม่สำเร็จ ลองใหม่อีกครั้ง หรือเปลี่ยนเป็นโมเดลที่ใหญ่ขึ้นในหน้า จัดการโมเดล AI');
+  return result.slice(0, count);
 }
 
 // Try a model with a small real task (admin "ทดสอบโมเดล")
@@ -192,15 +205,20 @@ async function testModel(model, progress) {
 function normalizeGenerated(q, pts) {
   if (!q || !q.type || !q.prompt && !q.text) return null;
   const base = { type: q.type, prompt: String(q.prompt || ''), points: pts, explanation: String(q.explanation || ''), data: {} };
-  const opts = (arr) => (arr || []).map(x => ({ id: token(6), text: String(typeof x === 'object' ? (x.text ?? '') : x) }));
+  // clean "A. Linux" → "Linux"; detect placeholder choices like "A","B","C","D" / "ก","ข" / "<...>"
+  const clean = (x) => String(typeof x === 'object' && x ? (x.text ?? '') : x ?? '').trim().replace(/^(?:[A-Ha-h]|[ก-ฌ]|[1-8])\s*[.)]\s+(?=\S)/, '');
+  const isPlaceholder = (t) => !t || /^(?:[A-Ha-h]|[ก-ฌ]|[1-8]|choice\s*\d|ตัวเลือก\s*\d?)$/i.test(t) || /^<.*>$/.test(t) || t === '...';
+  const opts = (arr) => (arr || []).map(x => ({ id: token(6), text: clean(x) }));
+  const badOpts = (o) => o.length < 2 || o.filter(x => isPlaceholder(x.text)).length >= Math.ceil(o.length / 2) || new Set(o.map(x => x.text)).size < o.length;
+  if (/^<.*>$/.test(String(q.prompt || '').trim())) return null;
   switch (q.type) {
     case 'single': {
-      const o = opts(q.options); if (o.length < 2) return null;
+      const o = opts(q.options); if (badOpts(o)) return null;
       const ci = Number.isInteger(q.correct_index) ? q.correct_index : 0;
       base.data = { options: o, correct: [o[Math.min(ci, o.length - 1)].id] }; break;
     }
     case 'multiple': {
-      const o = opts(q.options); if (o.length < 2) return null;
+      const o = opts(q.options); if (badOpts(o)) return null;
       const ci = (q.correct_indices || []).filter(i => o[i]);
       base.data = { options: o, correct: ci.map(i => o[i].id), partial: true }; break;
     }

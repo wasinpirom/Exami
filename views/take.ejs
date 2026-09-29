@@ -1,6 +1,6 @@
 <%- include('partials/head', { noAds: true }) %>
 <script type="application/json" id="init"><%- JSON.stringify({ token: attempt.token, questions, saved, remaining, onePerPage: !!exam.settings.one_per_page, maxUploadMb: Number(maxUpload) }).replace(/</g, '\\u003c') %></script>
-<script src="/static/js/take.js"></script>
+<script src="/static/js/take.js?v=<%= ver %>"></script>
 <script defer src="/vendor/alpine.js"></script>
 <div class="container page narrow" x-data="taker()" x-cloak>
   <h1><%= exam.title %></h1>

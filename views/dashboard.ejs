@@ -7,8 +7,8 @@
         <h1>สวัสดี, <%= user.name %> 👋</h1>
         <div class="muted">วันนี้อยากสร้างอะไรดี?</div>
         <div class="row mt">
-          <form method="post" action="/exams/new"><button class="btn lg" style="background:#fff;color:#4f46e5!important;border:0">+ สร้างแบบทดสอบ</button></form>
-          <form method="post" action="/courses/new"><button class="btn lg glass">+ สร้างคอร์ส</button></form>
+          <button type="button" class="btn lg" style="background:#fff;color:#4f46e5!important;border:0" onclick="openNew('exam')">+ สร้างแบบทดสอบ</button>
+          <button type="button" class="btn lg glass" onclick="openNew('course')">+ สร้างคอร์ส</button>
           <a class="btn lg glass" href="/library">📚 คัดลอกจากคลัง</a>
         </div>
       </div>
@@ -32,7 +32,7 @@
   <div class="row between mt2"><h2 style="margin:0">📝 แบบทดสอบของฉัน</h2></div>
   <% if (!exams.length) { %>
     <div class="card mt" style="text-align:center;padding:40px"><div style="font-size:2.6rem">📝</div><h3>ยังไม่มีแบบทดสอบ</h3><p class="muted">เริ่มจากสร้างใหม่ ให้ AI ช่วยออก หรือคัดลอกจากคลังข้อสอบ</p>
-      <form method="post" action="/exams/new"><button class="btn primary">+ สร้างแบบทดสอบแรก</button></form></div>
+      <button type="button" class="btn primary" onclick="openNew('exam')">+ สร้างแบบทดสอบแรก</button></div>
   <% } else { %>
   <div class="grid mt">
     <% exams.forEach(e => { %>
@@ -98,4 +98,23 @@
     </div>
   </div>
 </div>
+<dialog id="newDlg" class="new-dlg">
+  <form method="post" id="newForm" class="modal" style="max-width:480px;margin:0">
+    <h2 id="newHead">สร้างแบบทดสอบใหม่</h2>
+    <div class="field"><label id="newLabel">ชื่อแบบทดสอบ</label>
+      <input type="text" name="title" id="newName" required maxlength="300" autocomplete="off"></div>
+    <div class="row"><button class="btn primary">สร้าง →</button><button type="button" class="btn ghost" onclick="document.getElementById('newDlg').close()">ยกเลิก</button></div>
+  </form>
+</dialog>
+<script>
+function openNew(kind) {
+  const exam = kind === 'exam', d = document.getElementById('newDlg');
+  document.getElementById('newForm').action = exam ? '/exams/new' : '/courses/new';
+  document.getElementById('newHead').textContent = exam ? '📝 สร้างแบบทดสอบใหม่' : '🎓 สร้างคอร์สใหม่';
+  document.getElementById('newLabel').textContent = exam ? 'ชื่อแบบทดสอบ' : 'ชื่อคอร์ส';
+  const inp = document.getElementById('newName'); inp.value = '';
+  inp.placeholder = exam ? 'เช่น สอบกลางภาค วิชาระบบปฏิบัติการ' : 'เช่น พื้นฐาน Machine Learning';
+  d.showModal(); setTimeout(() => inp.focus(), 50);
+}
+</script>
 <%- include('partials/foot') %>

@@ -94,7 +94,10 @@ function builder() {
       this.$watch('questions', () => this.dirty = true, { deep: true });
       window.addEventListener('beforeunload', (e) => { if (this.dirty) { e.preventDefault(); e.returnValue = ''; } });
       window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); this.save(); } });
-      this.$nextTick(() => { this.dirty = false; this.drawQR(); });
+      this.$nextTick(() => {
+        this.dirty = false; this.drawQR();
+        if (/^แบบทดสอบใหม่/.test(this.exam.title) && !this.questions.length) { const t = document.getElementById('examTitle'); if (t) { t.focus(); t.select(); } }
+      });
     },
     get totalPoints() { return this.questions.reduce((s, q) => s + (Number(q.points) || 0), 0); },
     typeLabel(t) { return (this.types[t] || {}).label || t; },

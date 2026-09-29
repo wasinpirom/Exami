@@ -3,7 +3,7 @@
   exam: { id: exam.id, title: exam.title, description: exam.description, is_open: !!exam.is_open, in_library: !!exam.in_library, category: exam.category, settings: exam.settings },
   questions, types: TYPES, usage, shareUrl: baseUrl + '/t/' + exam.share_token
 }).replace(/</g, '\\u003c') %></script>
-<script src="/static/js/builder.js"></script>
+<script src="/static/js/builder.js?v=<%= ver %>"></script>
 <script src="/vendor/qrcode.js"></script>
 <script defer src="/vendor/alpine.js"></script>
 
@@ -11,7 +11,7 @@
   <% if (copied) { %><div class="alert ok">📋 คัดลอกชุดข้อสอบมาไว้ในพื้นที่ของคุณแล้ว — แก้ไขได้เลย (ตอนนี้ยัง “ปิดรับคำตอบ” อยู่ เปิดได้ในแท็บตั้งค่า)</div><% } %>
   <div class="page-head">
     <div class="grow">
-      <input type="text" x-model="exam.title" style="font-size:1.4rem;font-weight:700;border:0;padding:4px 0;background:transparent" placeholder="ชื่อแบบทดสอบ">
+      <label class="title-edit" title="คลิกเพื่อเปลี่ยนชื่อ"><input type="text" x-model="exam.title" id="examTitle" placeholder="ตั้งชื่อแบบทดสอบ..."><span>✏️</span></label>
       <div class="muted small"><span x-text="questions.length"></span> ข้อ · คะแนนเต็ม <b x-text="totalPoints"></b>
         <% if (exam.source_owner_name) { %> · คัดลอกจากผลงานของ <%= exam.source_owner_name %><% } %></div>
     </div>

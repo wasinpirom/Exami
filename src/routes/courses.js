@@ -27,7 +27,8 @@ function canLearn(course, user) {
 
 // ---------- Owner ----------
 r.post('/courses/new', requireLogin, (req, res) => {
-  const t = String(req.body.title || '').trim() || 'คอร์สใหม่';
+  const n = db.prepare('SELECT COUNT(*) c FROM courses WHERE owner_id=?').get(req.user.id).c + 1;
+  const t = String(req.body.title || '').trim() || `คอร์สใหม่ ${n}`;
   const x = db.prepare('INSERT INTO courses(owner_id,title,share_token) VALUES(?,?,?)').run(req.user.id, t.slice(0, 300), token(8));
   res.redirect(`/courses/${x.lastInsertRowid}/edit`);
 });

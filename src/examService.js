@@ -110,8 +110,8 @@ function copyExam(examId, newOwnerId, { asLibraryCopy = true } = {}) {
   return db.transaction(() => {
     const settings = { ...src.settings, access_code: '' };
     const r = db.prepare(`INSERT INTO exams(owner_id,title,description,settings,share_token,category,source_exam_id,source_owner_name,is_open)
-      VALUES(?,?,?,?,?,?,?,?,0)`).run(newOwnerId, (asLibraryCopy ? '' : 'สำเนา - ') + src.title, src.description, JSON.stringify(settings),
-      newShareToken(), src.category, src.id, owner ? owner.name : null);
+      VALUES(?,?,?,?,?,?,?,?,0)`).run(newOwnerId, asLibraryCopy ? src.title : src.title + ' (สำเนา)', src.description, JSON.stringify(settings),
+      newShareToken(), src.category, src.id, owner && src.owner_id !== newOwnerId ? owner.name : null);   // credit only when copied from someone else
     const newId = r.lastInsertRowid;
     const imgMap = {};
     for (const f of imgs) {

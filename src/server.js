@@ -25,6 +25,7 @@ app.use((req, res, next) => {
   res.locals.fmtBytes = fmtBytes;
   res.locals.fmtDate = fmtDate;
   res.locals.md = md;
+  res.locals.ver = require('../package.json').version;   // cache-busting for static files after updates
   res.locals.path = req.path;
   res.locals.baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
   res.locals.aiNotices = req.user && req.user.role === 'admin' ? require('./models').noticeCount() : 0;
@@ -41,7 +42,7 @@ app.use(require('./routes/admin'));
 
 app.use((req, res) => res.status(404).render('error', { title: 'ไม่พบหน้านี้', message: 'ลิงก์อาจไม่ถูกต้อง หรือถูกลบไปแล้ว' }));
 app.use((err, req, res, next) => {
-  Object.assign(res.locals, { site: res.locals.site || getSettings(), fmtBytes, fmtDate, md, path: req.path, user: req.user || null, baseUrl: '' });
+  Object.assign(res.locals, { site: res.locals.site || getSettings(), fmtBytes, fmtDate, md, ver: require('../package.json').version, path: req.path, user: req.user || null, baseUrl: '' });
   const status = err.status || (err.code === 'LIMIT_FILE_SIZE' ? 413 : 500);
   const message = err.code === 'LIMIT_FILE_SIZE' ? `ไฟล์ใหญ่เกินไป (สูงสุด ${getSettings().max_upload_mb}MB ต่อไฟล์)` : (status === 500 ? 'เกิดข้อผิดพลาดในระบบ' : err.message);
   if (status === 500) console.error(err);

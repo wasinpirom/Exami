@@ -1,0 +1,23 @@
+<%- include('partials/head', { noAds: true }) %>
+<div class="container page">
+  <a href="/courses/<%= course.id %>/edit" class="small">← <%= course.title %></a>
+  <div class="page-head mt"><h1>📈 ความก้าวหน้าของผู้เรียน</h1><a class="btn" href="/courses/<%= course.id %>/progress.csv">⬇ ส่งออก CSV</a></div>
+  <div class="row small mb"><span><span class="dot done">✓</span> เรียนจบ (ผู้เรียนติ๊ก)</span><span><span class="dot seen">👁</span> เปิดดูแล้ว (% = ดูวิดีโอ YouTube)</span><span><span class="dot none">·</span> ยังไม่เปิด</span></div>
+  <% if (!students.length) { %><div class="card muted">ยังไม่มีผู้เรียนที่ได้รับอนุมัติ</div><% } else { %>
+  <div class="table-wrap"><table class="matrix">
+    <tr><th>ผู้เรียน</th><th>จบแล้ว</th><% lessons.forEach((l,i) => { %><th title="<%= l.title %>"><%= i+1 %></th><% }) %></tr>
+    <% students.forEach(s => { const done = lessons.filter(l => (pm[s.id+':'+l.id]||{}).completed_at).length; const pct = lessons.length ? Math.round(done/lessons.length*100) : 0; %>
+    <tr><td><b><%= s.name %></b><div class="tiny muted"><%= s.email %></div></td>
+      <td style="min-width:110px"><div class="bar"><i style="width:<%= pct %>%"></i></div><div class="tiny"><%= done %>/<%= lessons.length %></div></td>
+      <% lessons.forEach(l => { const p = pm[s.id+':'+l.id]; const sc = l.exam_id && scores[s.id+':'+l.exam_id]; %>
+        <td title="<%= p ? 'ดู ' + p.view_count + ' ครั้ง · ล่าสุด ' + fmtDate(p.last_viewed_at) + (p.completed_at ? ' · จบ ' + fmtDate(p.completed_at) : '') : 'ยังไม่เปิด' %>">
+          <% if (!p) { %><span class="dot none">·</span><% } else if (p.completed_at) { %><span class="dot done">✓</span><% } else { %><span class="dot seen"><%= p.watch_percent ? p.watch_percent : '👁' %></span><% } %>
+          <% if (sc) { %><div class="tiny" style="color:var(--brand)">📝<%= sc.score %>/<%= sc.max_score %></div><% } %>
+        </td>
+      <% }) %></tr>
+    <% }) %>
+  </table></div>
+  <div class="small muted mt">บทเรียน: <% lessons.forEach((l,i) => { %><span style="margin-right:12px"><b><%= i+1 %></b> <%= l.title %></span><% }) %></div>
+  <% } %>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

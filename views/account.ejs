@@ -1,0 +1,17 @@
+<%- include('partials/head') %>
+<div class="container page" style="max-width:520px">
+  <div class="card">
+    <h1>บัญชีของฉัน</h1>
+    <% if (msg) { %><div class="alert ok"><%= msg %></div><% } %>
+    <% if (error) { %><div class="alert bad"><%= error %></div><% } %>
+    <form method="post" action="/account">
+      <div class="field"><label>อีเมล</label><input type="email" value="<%= user.email %>" disabled></div>
+      <div class="field"><label>ชื่อที่แสดง</label><input type="text" name="name" value="<%= user.name %>"></div>
+      <h3 class="mt">เปลี่ยนรหัสผ่าน</h3>
+      <div class="field"><label>รหัสผ่านเดิม</label><input type="password" name="password"></div>
+      <div class="field"><label>รหัสผ่านใหม่</label><input type="password" name="new_password" minlength="6"></div>
+      <button class="btn primary">บันทึก</button>
+    </form>
+  </div>
+</div>
+<%- include('partials/foot') %>

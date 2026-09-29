@@ -1,0 +1,17 @@
+<% if (typeof noAds === 'undefined' || !noAds) { %><div class="ad-slot"><%- site.ad_bottom_html %></div><% } %>
+<footer>
+  <div class="container">
+    <div>
+      <div class="logo" style="font-size:1.1rem;margin-bottom:6px"><span class="logo-mark" style="width:28px;height:28px;font-size:.85rem">✓</span><%= site.site_name %></div>
+      <%= site.site_tagline %><br>
+      <span class="small">ต้องการพื้นที่เพิ่ม / ติดต่อ: LINE OA <b><%= site.contact_line %></b></span>
+    </div>
+    <div class="row">
+      <% if (site.github_url) { %><a class="btn sm" href="<%= site.github_url %>" target="_blank" rel="noopener">⭐ Open Source บน GitHub</a><% } %>
+      <% if (site.donate_url) { %><a class="btn sm donate" href="<%= site.donate_url %>" target="_blank" rel="noopener"><%= site.donate_text %></a><% } %>
+    </div>
+  </div>
+</footer>
+<script>initUI()</script>
+</body>
+</html>

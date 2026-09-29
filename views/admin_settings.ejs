@@ -1,0 +1,60 @@
+<%- include('partials/head', { noAds: true }) %>
+<div class="container page narrow">
+  <a href="/admin" class="small">← ผู้ดูแลระบบ</a>
+  <div class="page-head mt"><div><h1>⚙ ตั้งค่าเว็บไซต์</h1><div class="muted">ตั้งค่าทุกอย่างได้จากหน้านี้ ไม่ต้องแก้ไฟล์ และไม่ต้อง deploy ใหม่ — มีผลทันทีที่กดบันทึก</div></div></div>
+  <% if (saved) { %><div class="alert ok">✓ บันทึกแล้ว — มีผลทันที</div><% } %>
+  <form method="post" action="/admin/settings">
+
+    <div class="card mb">
+      <h3>🏠 ทั่วไป</h3>
+      <div class="grid-2">
+        <div class="field"><label>ชื่อเว็บไซต์</label><input type="text" name="site_name" value="<%= s.site_name %>"></div>
+        <div class="field"><label>LINE OA สำหรับติดต่อ / ขอเพิ่มพื้นที่</label><input type="text" name="contact_line" value="<%= s.contact_line %>" placeholder="@wasin"></div>
+      </div>
+      <div class="field"><label>คำอธิบายเว็บไซต์ (แสดงหน้าแรกและผลค้นหา Google)</label><input type="text" name="site_tagline" value="<%= s.site_tagline %>"></div>
+      <div class="field"><label>ประกาศแถบบนสุด <span class="hint">(Markdown ได้ · เว้นว่าง = ไม่แสดง)</span></label><input type="text" name="announcement" value="<%= s.announcement %>" placeholder="เช่น 🎉 เปิดให้ใช้งานฟรีแล้ววันนี้!"></div>
+      <label class="check"><input type="checkbox" name="allow_register" value="1" <%= s.allow_register==='1'?'checked':'' %>> เปิดรับสมัครสมาชิกใหม่</label>
+    </div>
+
+    <div class="card mb">
+      <h3>💾 พื้นที่เก็บไฟล์</h3>
+      <div class="grid-2">
+        <div class="field"><label>พื้นที่เริ่มต้นต่อผู้ใช้ (MB)</label><input type="number" min="0" name="default_quota_mb" value="<%= s.default_quota_mb %>">
+          <div class="tiny muted">ปรับรายคนได้ที่หน้า ผู้ดูแล → รายชื่อผู้ใช้</div></div>
+        <div class="field"><label>ขนาดไฟล์สูงสุดต่อไฟล์ (MB)</label><input type="number" min="1" name="max_upload_mb" value="<%= s.max_upload_mb %>"></div>
+      </div>
+    </div>
+
+    <div class="card mb">
+      <h3>🤖 AI</h3>
+      <label class="check"><input type="checkbox" name="ai_enabled" value="1" <%= s.ai_enabled!=='0'?'checked':'' %>> เปิดใช้งาน AI (สร้างข้อสอบ / ตรวจข้อเขียน)</label>
+      <div class="field mt"><label>ที่อยู่ AI Server <span class="hint">(OpenAI-compatible API)</span></label>
+        <input type="text" name="ai_base_url" value="<%= s.ai_base_url %>">
+        <div class="tiny muted">ค่าเริ่มต้น <code>http://127.0.0.1:11434/v1</code> = Ollama ที่ติดมากับ Exami ในเครื่องเดียวกัน (ไม่ต้องแก้) · ถ้ามีเครื่อง GPU แยก ใส่ เช่น <code>http://192.168.1.50:11434/v1</code></div></div>
+      <div class="grid-2">
+        <div class="field"><label>API Key <span class="hint">(เว้นว่างได้ถ้าใช้ Ollama)</span></label><input type="password" name="ai_api_key" value="<%= s.ai_api_key ? '********' : '' %>" autocomplete="off"></div>
+        <div class="field"><label>เวลารอ AI สูงสุด (วินาที)</label><input type="number" min="30" name="ai_timeout_sec" value="<%= s.ai_timeout_sec %>"></div>
+      </div>
+      <a class="btn sm" href="/admin/ai">🤖 เลือก / ดาวน์โหลด / ทดสอบโมเดล AI →</a>
+    </div>
+
+    <div class="card mb">
+      <h3>☕ บริจาค & Open Source</h3>
+      <div class="field"><label>ลิงก์บริจาค <span class="hint">(Buy Me a Coffee ฯลฯ · เว้นว่าง = ซ่อนปุ่ม)</span></label><input type="url" name="donate_url" value="<%= s.donate_url %>" placeholder="https://buymeacoffee.com/yourname"></div>
+      <div class="field"><label>ข้อความปุ่มบริจาค</label><input type="text" name="donate_text" value="<%= s.donate_text %>"></div>
+      <div class="field"><label>ลิงก์ GitHub ของโปรเจกต์ <span class="hint">(ใช้ดึงรายการโมเดล AI แนะนำด้วย)</span></label><input type="url" name="github_url" value="<%= s.github_url %>" placeholder="https://github.com/you/exami"></div>
+      <div class="field"><label>URL รายการโมเดล AI แนะนำ <span class="hint">(เว้นว่าง = ใช้ ai-models.json จาก GitHub ด้านบน)</span></label><input type="url" name="ai_recommend_url" value="<%= s.ai_recommend_url %>"></div>
+    </div>
+
+    <div class="card mb">
+      <h3>📢 โฆษณา (Banner)</h3>
+      <p class="small muted">วางโค้ด HTML ได้เลย เช่น Google AdSense หรือแบนเนอร์รูป <code>&lt;a href="..."&gt;&lt;img src="..."&gt;&lt;/a&gt;</code> — จะไม่แสดงในหน้าทำข้อสอบ/หน้าแก้ไข เพื่อไม่รบกวนผู้ใช้</p>
+      <div class="field"><label>โค้ดใน &lt;head&gt; (เช่น สคริปต์ AdSense)</label><textarea name="ad_head_html" rows="3" style="font-family:monospace;font-size:.85rem"><%= s.ad_head_html %></textarea></div>
+      <div class="field"><label>แบนเนอร์ด้านบน</label><textarea name="ad_top_html" rows="3" style="font-family:monospace;font-size:.85rem"><%= s.ad_top_html %></textarea></div>
+      <div class="field"><label>แบนเนอร์ด้านล่าง</label><textarea name="ad_bottom_html" rows="3" style="font-family:monospace;font-size:.85rem"><%= s.ad_bottom_html %></textarea></div>
+    </div>
+
+    <div class="sticky-bar"><div class="row between"><span class="small muted">การตั้งค่ามีผลทันที</span><button class="btn primary">💾 บันทึกการตั้งค่า</button></div></div>
+  </form>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

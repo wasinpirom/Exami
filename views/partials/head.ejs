@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= typeof title !== 'undefined' ? title + ' · ' : '' %><%= site.site_name %></title>
+<meta name="description" content="<%= site.site_tagline %>">
+<meta name="theme-color" content="#6d5dfc">
+<meta property="og:title" content="<%= typeof title !== 'undefined' ? title : site.site_name %>">
+<meta property="og:description" content="<%= site.site_tagline %>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236d5dfc'/><stop offset='1' stop-color='%23ec4899'/></linearGradient></defs><rect width='64' height='64' rx='18' fill='url(%23g)'/><path d='M20 34l8 8 16-18' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<script>(function(){try{var t=localStorage.getItem('exami-theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})()</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Kanit:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/app.css?v=11">
+<script src="/static/js/common.js?v=11"></script>
+<%- site.ad_head_html %>
+</head>
+<body>
+<% if (site.announcement) { %><div class="announce"><%- md(site.announcement).replace(/^<p>|<\/p>\s*$/g,'') %></div><% } %>
+<nav class="nav" id="nav">
+  <div class="container">
+    <a class="logo" href="/"><span class="logo-mark">✓</span><span><%= site.site_name %></span></a>
+    <button class="icon-btn menu-btn" onclick="document.getElementById('nav').classList.toggle('open')" aria-label="menu">☰</button>
+    <div class="nav-links">
+      <% if (user) { %><a href="/dashboard" class="<%= path==='/dashboard'?'active':'' %>">แดชบอร์ด</a><% } %>
+      <a href="/library" class="<%= path.startsWith('/library')?'active':'' %>">คลังข้อสอบ</a>
+      <a href="/courses" class="<%= path==='/courses'?'active':'' %>">คอร์สเรียน</a>
+      <% if (user) { %><a href="/my-results" class="<%= path==='/my-results'?'active':'' %>">ผลสอบของฉัน</a><% } %>
+      <% if (user && user.role==='admin') { %><a href="<%= aiNotices ? '/admin/ai' : '/admin' %>" class="<%= path.startsWith('/admin')?'active':'' %>">ผู้ดูแล<% if (aiNotices) { %><span class="pill-badge" title="มีการแจ้งเตือนเรื่องโมเดล AI"><%= aiNotices %></span><% } %></a><% } %>
+    </div>
+    <div class="nav-right">
+      <button class="icon-btn" onclick="toggleTheme()" title="สลับโหมดมืด/สว่าง" aria-label="theme"><span class="theme-ico">🌙</span></button>
+      <% if (site.donate_url) { %><a class="btn sm donate" href="<%= site.donate_url %>" target="_blank" rel="noopener">☕ บริจาค</a><% } %>
+      <% if (user) { %>
+        <a class="btn sm ghost" href="/account">👤 <%= user.name %></a>
+        <form class="inline" method="post" action="/logout"><button class="btn sm">ออก</button></form>
+      <% } else { %>
+        <a class="btn sm ghost" href="/login">เข้าสู่ระบบ</a>
+        <a class="btn sm primary" href="/register">เริ่มใช้ฟรี</a>
+      <% } %>
+    </div>
+  </div>
+</nav>
+<% if (typeof noAds === 'undefined' || !noAds) { %><div class="ad-slot"><%- site.ad_top_html %></div><% } %>

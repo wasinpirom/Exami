@@ -1,0 +1,90 @@
+<%- include('partials/head', { noAds: true }) %>
+<script type="application/json" id="init"><%- JSON.stringify({ token: attempt.token, questions, saved, remaining, onePerPage: !!exam.settings.one_per_page, maxUploadMb: Number(maxUpload) }).replace(/</g, '\\u003c') %></script>
+<script src="/static/js/take.js"></script>
+<script defer src="/vendor/alpine.js"></script>
+<div class="container page narrow" x-data="taker()" x-cloak>
+  <h1><%= exam.title %></h1>
+  <div class="muted small mb">ผู้สอบ: <b><%= attempt.taker_name %></b><%= attempt.taker_ident ? ' (' + attempt.taker_ident + ')' : '' %></div>
+
+  <div class="timer">
+    <div class="timer-row">
+      <div class="row" style="gap:14px"><template x-if="remaining!=null"><span class="clock" :class="remaining<120&&'low'" x-text="'⏱ ' + timeText"></span></template>
+        <span class="small">ตอบแล้ว <b x-text="answeredCount"></b>/<span x-text="questions.length"></span></span></div>
+      <div class="small muted"><span x-show="saving">☁️ กำลังบันทึก...</span><span x-show="!saving && savedAt" x-text="'✓ บันทึกอัตโนมัติ ' + savedAt"></span></div>
+    </div>
+    <div class="bar" style="margin-top:10px;height:6px"><i :style="'width:' + (answeredCount/questions.length*100) + '%'"></i></div>
+  </div>
+  <div class="qnav mb"><template x-for="(q,i) in questions" :key="q.id"><a href="#" @click.prevent="go(i)" :class="isAnswered(q)&&'done'" x-text="i+1"></a></template></div>
+
+  <template x-for="(q, i) in questions" :key="q.id">
+    <div class="card q-card" :id="'q'+i" x-show="!onePerPage || page===i">
+      <div class="q-head"><span class="q-num" x-text="'ข้อ ' + (i+1)"></span><span class="badge" x-text="q.points + ' คะแนน'"></span></div>
+      <div class="q-prompt" x-text="q.prompt"></div>
+      <template x-if="q.image"><img class="q-img" :src="q.image" alt=""></template>
+
+      <template x-if="q.type==='single'"><div>
+        <template x-for="(o, oi) in q.options" :key="o.id">
+          <label class="opt" :class="String(answers[q.id])===String(o.id)&&'sel'"><input type="radio" :name="'q'+q.id" :value="String(o.id)" x-model="answers[q.id]"><span class="letter" x-text="String.fromCharCode(65+oi)"></span><span x-text="o.text"></span></label>
+        </template></div></template>
+
+      <template x-if="q.type==='multiple'"><div><div class="small muted mb">เลือกได้มากกว่า 1 ข้อ</div>
+        <template x-for="(o, oi) in q.options" :key="o.id">
+          <label class="opt" :class="answers[q.id].includes(String(o.id))&&'sel'"><input type="checkbox" :checked="answers[q.id].includes(String(o.id))" @change="toggleMulti(q,o.id)"><span class="letter" x-text="answers[q.id].includes(String(o.id)) ? '✓' : String.fromCharCode(65+oi)"></span><span x-text="o.text"></span></label>
+        </template></div></template>
+
+      <template x-if="q.type==='truefalse'"><div class="row">
+        <label class="opt grow" :class="answers[q.id]==='true'&&'sel'"><input type="radio" :name="'q'+q.id" value="true" x-model="answers[q.id]"><span class="letter">✔</span> ถูก</label>
+        <label class="opt grow" :class="answers[q.id]==='false'&&'sel'"><input type="radio" :name="'q'+q.id" value="false" x-model="answers[q.id]"><span class="letter">✘</span> ผิด</label>
+      </div></template>
+
+      <template x-if="q.type==='matching'"><div>
+        <template x-for="l in q.lefts" :key="l.id">
+          <div class="match-row"><div class="pre" x-text="l.text"></div>
+            <select x-model="answers[q.id][l.id]"><option value="">— เลือกคู่ —</option><template x-for="r in q.rights" :key="r"><option :value="r" x-text="r"></option></template></select></div>
+        </template></div></template>
+
+      <template x-if="q.type==='ordering'"><div><div class="small muted mb">เรียงลำดับให้ถูกต้องด้วยปุ่ม ↑ ↓</div>
+        <template x-for="(id, k) in answers[q.id]" :key="id">
+          <div class="order-item"><b x-text="k+1"></b><span class="grow" x-text="itemText(q,id)"></span>
+            <button type="button" class="btn sm" @click="moveItem(q,k,-1)" :disabled="k===0">↑</button>
+            <button type="button" class="btn sm" @click="moveItem(q,k,1)" :disabled="k===answers[q.id].length-1">↓</button></div>
+        </template>
+        <button type="button" class="btn sm" :class="touched[q.id] ? 'ok' : ''" @click="touched[q.id]=true; queueSave()" x-text="touched[q.id] ? '✓ ยืนยันลำดับแล้ว' : 'ยืนยันลำดับนี้'"></button>
+        </div></template>
+
+      <template x-if="q.type==='short'"><input type="text" x-model="answers[q.id]" placeholder="พิมพ์คำตอบ"></template>
+
+      <template x-if="q.type==='fillblank'"><div class="fill-text"><template x-for="(part, k) in q.parts" :key="k"><span><span x-text="part"></span><template x-if="k < q.blankCount"><input type="text" class="blank" x-model="answers[q.id][k]" :placeholder="'('+(k+1)+')'"></template></span></template></div></template>
+
+      <template x-if="q.type==='essay'"><div>
+        <textarea x-model="answers[q.id]" rows="8" placeholder="เขียนคำตอบของคุณ..."></textarea>
+        <div class="tiny muted"><span x-text="words(answers[q.id])"></span> คำ<template x-if="q.min_words"><span x-text="' (ขั้นต่ำ ' + q.min_words + ' คำ)'"></span></template></div>
+      </div></template>
+
+      <template x-if="q.type==='link'"><div>
+        <input type="url" x-model="answers[q.id].url" :placeholder="q.youtube_only ? 'https://www.youtube.com/watch?v=...' : 'https://...'">
+        <div class="small" style="color:var(--bad)" x-text="linkError(q)"></div>
+        <template x-if="ytId(answers[q.id].url)"><div class="video mt" style="max-width:420px;padding-top:min(56.25%,236px)"><iframe :src="'https://www.youtube.com/embed/' + ytId(answers[q.id].url)" allowfullscreen></iframe></div></template>
+        <textarea class="mt" x-model="answers[q.id].note" rows="2" placeholder="คำอธิบายเพิ่มเติม (ไม่บังคับ)"></textarea>
+      </div></template>
+
+      <template x-if="q.type==='file'"><div>
+        <template x-if="answers[q.id].file_id"><div class="alert ok small">📎 <span x-text="answers[q.id].name"></span> (<span x-text="fmtSize(answers[q.id].size||0)"></span>) — อัปโหลดใหม่เพื่อแทนที่</div></template>
+        <input type="file" :accept="q.accept" @change="upload(q,$event)" :disabled="uploading[q.id]">
+        <div class="tiny muted"><span x-show="uploading[q.id]">กำลังอัปโหลด... </span>รับไฟล์: <span x-text="q.accept || 'ทุกชนิด'"></span> · สูงสุด <%= maxUpload %>MB</div>
+        <textarea class="mt" x-model="answers[q.id].note" rows="2" placeholder="คำอธิบายเพิ่มเติม (ไม่บังคับ)"></textarea>
+      </div></template>
+
+      <template x-if="onePerPage"><div class="row between mt">
+        <button class="btn" @click="page--" :disabled="page===0">← ก่อนหน้า</button>
+        <button class="btn primary" @click="page++" x-show="page<questions.length-1">ถัดไป →</button>
+      </div></template>
+    </div>
+  </template>
+
+  <div class="card" style="text-align:center" x-show="!onePerPage || page===questions.length-1">
+    <p class="muted">ตอบแล้ว <b x-text="answeredCount"></b> จาก <span x-text="questions.length"></span> ข้อ</p>
+    <button class="btn primary lg" @click="submit(false)" :disabled="submitting" x-text="submitting ? 'กำลังส่ง...' : '📤 ส่งคำตอบ'"></button>
+  </div>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

@@ -1,0 +1,16 @@
+<%- include('partials/head') %>
+<div class="container page">
+  <h1>ผลสอบของฉัน</h1>
+  <% if (!results.length) { %><div class="card muted">ยังไม่มีผลสอบ</div><% } else { %>
+  <div class="table-wrap"><table>
+    <tr><th>แบบทดสอบ</th><th>วันที่</th><th class="num">คะแนน</th><th>สถานะ</th><th></th></tr>
+    <% results.forEach(a => { const st = JSON.parse(a.settings||'{}'); %>
+    <tr><td><%= a.title %></td><td><%= fmtDate(a.submitted_at || a.started_at) %></td>
+      <td class="num"><% if (a.status==='submitted' && st.show_score !== false) { %><b><%= a.score %></b> / <%= a.max_score %><% } else { %>-<% } %></td>
+      <td><%- a.status!=='submitted' ? '<span class="badge brand">กำลังทำ</span>' : a.pending_count ? '<span class="badge warn">รอตรวจบางข้อ</span>' : '<span class="badge ok">ตรวจแล้ว</span>' %></td>
+      <td><a class="btn sm" href="<%= a.status==='submitted' ? '/r/' : '/a/' %><%= a.token %>"><%= a.status==='submitted' ? 'ดูผล' : 'ทำต่อ' %></a></td></tr>
+    <% }) %>
+  </table></div>
+  <% } %>
+</div>
+<%- include('partials/foot') %>

@@ -1,0 +1,24 @@
+<%- include('partials/head') %>
+<div class="container page narrow">
+  <div class="card">
+    <% if (exam.category) { %><span class="badge"><%= exam.category %></span><% } %>
+    <h1><%= exam.title %></h1>
+    <div class="muted small">โดย <%= owner && owner.name %> · <%= questions.length %> ข้อ · คัดลอกแล้ว <%= exam.copy_count %> ครั้ง</div>
+    <% if (exam.description) { %><div class="prose mt"><%- md(exam.description) %></div><% } %>
+    <div class="row mt">
+      <form method="post" action="/library/<%= exam.id %>/copy"><button class="btn primary lg">📋 คัดลอกไปใช้ในพื้นที่ของฉัน</button></form>
+      <% if (!user) { %><span class="small muted">ต้องเข้าสู่ระบบก่อนคัดลอก</span><% } %>
+    </div>
+  </div>
+  <h2 class="mt2">ตัวอย่างคำถาม</h2>
+  <p class="small muted">แสดงเฉพาะโจทย์ (เฉลยจะเห็นหลังคัดลอกไปยังพื้นที่ของคุณ)</p>
+  <% questions.forEach((q,i) => { %>
+    <div class="card q-card pad-sm">
+      <div class="q-head"><span class="q-num">ข้อ <%= i+1 %></span><span class="badge"><%= TYPES[q.type].label %> · <%= q.points %> คะแนน</span></div>
+      <div class="q-prompt"><%= q.prompt %></div>
+      <% if (q.image_file_id) { %><img class="q-img" src="/files/<%= q.image_file_id %>" alt=""><% } %>
+      <% const d = JSON.parse(q.data||'{}'); if (d.options) { %><ul class="small"><% d.options.forEach(o => { %><li><%= o.text %></li><% }) %></ul><% } %>
+    </div>
+  <% }) %>
+</div>
+<%- include('partials/foot') %>

@@ -1,0 +1,57 @@
+<%- include('partials/head', { noAds: true }) %>
+<script defer src="/vendor/alpine.js"></script>
+<script>
+function live() {
+  return {
+    data: null, filter: 'all', err: '',
+    async init() { await this.load(); setInterval(() => this.load(), 5000); setInterval(() => this.tick(), 1000); },
+    async load() { try { this.data = await api('/api/exams/<%= exam.id %>/live'); this.err = ''; } catch (e) { this.err = e.message; } },
+    tick() { if (!this.data) return; this.data.attempts.forEach(a => { if (a.status === 'in_progress') { if (a.remaining != null && a.remaining > 0) a.remaining--; if (a.idle != null) a.idle++; a.elapsed++; } }); },
+    get list() { const L = this.data ? this.data.attempts : []; return this.filter === 'all' ? L : L.filter(a => this.filter === 'doing' ? a.status === 'in_progress' : this.filter === 'done' ? a.status === 'submitted' : a.tab >= 3); },
+    get doing() { return this.data ? this.data.attempts.filter(a => a.status === 'in_progress').length : 0; },
+    get done() { return this.data ? this.data.attempts.filter(a => a.status === 'submitted').length : 0; },
+    get flagged() { return this.data ? this.data.attempts.filter(a => a.tab >= 3).length : 0; },
+    t(s) { if (s == null) return '-'; const m = Math.floor(s / 60), x = s % 60; return m + ':' + String(x).padStart(2, '0'); },
+    idleText(s) { if (s == null) return '-'; if (s < 20) return 'เมื่อสักครู่'; if (s < 60) return s + ' วิที่แล้ว'; return Math.floor(s / 60) + ' นาทีที่แล้ว'; },
+  };
+}
+</script>
+<div class="container page" x-data="live()" x-cloak>
+  <a href="/exams/<%= exam.id %>/results" class="small">← ผลสอบ</a>
+  <div class="page-head mt">
+    <div><h1><span class="live-dot"></span>ติดตามการสอบสด</h1><div class="muted"><%= exam.title %> · อัปเดตอัตโนมัติทุก 5 วินาที</div></div>
+    <div class="row"><button class="btn" onclick="copyText('<%= baseUrl %>/t/<%= exam.share_token %>')">🔗 คัดลอกลิงก์สอบ</button>
+      <form method="post" action="/exams/<%= exam.id %>/toggle"><button class="btn <%= exam.is_open ? 'danger' : 'ok' %>"><%= exam.is_open ? '⏹ ปิดรับคำตอบ' : '▶ เปิดรับคำตอบ' %></button></form></div>
+  </div>
+  <div class="alert bad" x-show="err" x-text="err"></div>
+  <div class="stats mb">
+    <div class="stat"><b x-text="doing"></b><span>🟢 กำลังทำ</span></div>
+    <div class="stat"><b x-text="done"></b><span>✅ ส่งแล้ว (3 ชม.ล่าสุด)</span></div>
+    <div class="stat"><b x-text="flagged"></b><span>⚠️ สลับแท็บ ≥ 3 ครั้ง</span></div>
+  </div>
+  <div class="tabs">
+    <button :class="filter==='all'&&'on'" @click="filter='all'">ทั้งหมด</button>
+    <button :class="filter==='doing'&&'on'" @click="filter='doing'">กำลังทำ</button>
+    <button :class="filter==='done'&&'on'" @click="filter='done'">ส่งแล้ว</button>
+    <button :class="filter==='flag'&&'on'" @click="filter='flag'">น่าสงสัย</button>
+  </div>
+  <div class="table-wrap"><table>
+    <tr><th>ผู้สอบ</th><th>ความคืบหน้า</th><th>เหลือเวลา</th><th>ใช้ไป</th><th class="center">สลับแท็บ</th><th>ใช้งานล่าสุด</th><th>สถานะ</th></tr>
+    <template x-if="!list.length"><tr><td colspan="7" class="muted center" style="padding:40px">ยังไม่มีผู้สอบในขณะนี้ — แชร์ลิงก์หรือ QR ให้ผู้เรียนได้เลย</td></tr></template>
+    <template x-for="a in list" :key="a.id">
+      <tr>
+        <td><b x-text="a.name"></b><div class="tiny muted" x-text="a.ident"></div></td>
+        <td style="min-width:170px"><div class="bar"><i :style="'width:' + (a.total ? a.answered / a.total * 100 : 0) + '%'"></i></div><div class="tiny muted" x-text="a.answered + '/' + a.total + ' ข้อ'"></div></td>
+        <td><b :style="a.remaining != null && a.remaining < 120 ? 'color:var(--bad)' : ''" x-text="a.status==='in_progress' ? (a.remaining == null ? 'ไม่จำกัด' : t(a.remaining)) : '-'"></b></td>
+        <td x-text="t(a.elapsed)"></td>
+        <td class="center"><span class="badge" :class="a.tab >= 3 ? 'bad' : a.tab ? 'warn' : ''" x-text="a.tab"></span></td>
+        <td class="small muted" x-text="a.status==='in_progress' ? idleText(a.idle) : '-'"></td>
+        <td>
+          <template x-if="a.status==='in_progress'"><span class="badge brand">● กำลังทำ</span></template>
+          <template x-if="a.status==='submitted'"><a :href="'/exams/<%= exam.id %>/attempts/' + a.id" class="badge ok" x-text="'✓ ' + a.score + '/' + a.max + (a.pending ? ' (รอตรวจ)' : '')"></a></template>
+        </td>
+      </tr>
+    </template>
+  </table></div>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

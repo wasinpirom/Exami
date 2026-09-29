@@ -1,0 +1,27 @@
+<%- include('partials/head') %>
+<div class="container page narrow">
+  <div class="card">
+    <% if (course.cover_url) { %><img src="<%= course.cover_url %>" alt="" style="width:100%;border-radius:12px;margin-bottom:14px;max-height:320px;object-fit:cover"><% } %>
+    <h1><%= course.title %></h1>
+    <div class="muted small">โดย <%= course.owner_name %> · <%= lessons.length %> บทเรียน</div>
+    <% if (course.description) { %><div class="prose mt"><%- md(course.description) %></div><% } %>
+    <div class="mt">
+      <% if (canLearn) { %><a class="btn primary lg" href="/learn/<%= course.id %>">▶ เข้าเรียน</a>
+      <% } else if (!user) { %><a class="btn primary lg" href="/login?next=/c/<%= course.share_token %>">เข้าสู่ระบบเพื่อลงทะเบียนเรียน</a>
+      <% } else if (en && en.status === 'pending') { %><div class="alert warn">⏳ ส่งคำขอเข้าเรียนแล้ว — รอผู้สอนอนุมัติ</div>
+      <% } else { %>
+        <% if (en && en.status === 'rejected') { %><div class="alert bad">คำขอก่อนหน้าไม่ได้รับอนุมัติ ส่งคำขอใหม่ได้</div><% } %>
+        <form method="post" action="/c/<%= course.share_token %>/enroll"><button class="btn primary lg"><%= course.require_approval ? '📨 ขอเข้าเรียน (รอผู้สอนอนุมัติ)' : '✅ ลงทะเบียนเรียนทันที' %></button></form>
+      <% } %>
+    </div>
+  </div>
+  <h3 class="mt2">เนื้อหาในคอร์ส</h3>
+  <div class="card pad-sm lesson-list">
+    <% lessons.forEach((l, i) => { %>
+      <% if (canLearn || l.is_preview) { %><a href="/learn/<%= course.id %>/<%= l.id %>"><span class="ic"><%= i+1 %>.</span><span class="grow"><%= l.title %></span><%- l.is_preview && !canLearn ? '<span class="badge ok">ดูฟรี</span>' : '' %></a>
+      <% } else { %><div class="row" style="padding:9px 10px;gap:8px"><span class="ic muted"><%= i+1 %>.</span><span class="grow"><%= l.title %></span><span>🔒</span></div><% } %>
+    <% }) %>
+    <% if (!lessons.length) { %><div class="muted small" style="padding:10px">ยังไม่มีบทเรียน</div><% } %>
+  </div>
+</div>
+<%- include('partials/foot') %>

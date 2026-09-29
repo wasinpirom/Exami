@@ -1,0 +1,30 @@
+<%- include('partials/head', { noAds: true }) %>
+<div class="container page narrow">
+  <a href="/courses/<%= course.id %>/edit" class="small">← <%= course.title %></a>
+  <% if (saved) { %><div class="alert ok mt">บันทึกแล้ว — <a href="/learn/<%= course.id %>/<%= lesson.id %>" target="_blank">ดูหน้าบทเรียน ↗</a></div><% } %>
+  <form method="post" action="/courses/<%= course.id %>/lessons/<%= lesson.id %>" class="card mt">
+    <div class="field"><label>ชื่อบทเรียน</label><input type="text" name="title" value="<%= lesson.title %>" required></div>
+    <div class="field"><label>ลิงก์วิดีโอ <span class="hint">(YouTube, Vimeo, Google Drive, Facebook หรือไฟล์ .mp4 ที่ฝากไว้ที่อื่น)</span></label>
+      <input type="url" name="video_url" value="<%= lesson.video_url %>" placeholder="https://www.youtube.com/watch?v=..."></div>
+    <% if (embed) { %><div class="video mb"><% if (embed.kind==='file') { %><video src="<%= embed.src %>" controls></video><% } else { %><iframe src="<%= embed.src %>" allowfullscreen></iframe><% } %></div>
+      <div class="tiny muted mb"><%= embed.kind==='youtube' ? '✅ YouTube: ระบบติดตามได้ว่าผู้เรียนดูไปกี่ %' : 'ℹ วิดีโอชนิดนี้ติดตามได้เพียงว่าเปิดดูแล้ว (ติดตาม % ได้เฉพาะ YouTube)' %></div><% } %>
+    <div class="field"><label>โน้ตประกอบบทเรียน <span class="hint">(Markdown: **ตัวหนา**, # หัวข้อ, - รายการ, [ลิงก์](https://...), ![รูป](https://...))</span></label>
+      <textarea name="content_md" rows="12"><%= lesson.content_md %></textarea></div>
+    <div class="field"><label>ลิงก์เอกสาร / ไฟล์ประกอบ <span class="hint">(ฝากไฟล์ไว้ที่ Google Drive, OneDrive, Dropbox ฯลฯ แล้วแปะลิงก์)</span></label>
+      <div id="links">
+        <% (links.length ? links : [{title:'',url:''}]).forEach(l => { %>
+        <div class="opt-edit"><input type="text" name="link_title" value="<%= l.title %>" placeholder="ชื่อ เช่น สไลด์บทที่ 1 (PDF)" style="max-width:260px"><input type="url" name="link_url" value="<%= l.url %>" placeholder="https://..."><button type="button" class="btn sm ghost" onclick="this.parentNode.remove()">✕</button></div>
+        <% }) %>
+      </div>
+      <button type="button" class="btn sm" onclick="const d=document.querySelector('#links .opt-edit').cloneNode(true);d.querySelectorAll('input').forEach(i=>i.value='');document.getElementById('links').appendChild(d)">+ เพิ่มลิงก์</button>
+    </div>
+    <div class="field"><label>แบบทดสอบท้ายบท <span class="hint">(เลือกจากแบบทดสอบของคุณ)</span></label>
+      <select name="exam_id"><option value="">— ไม่มี —</option>
+        <% exams.forEach(e => { %><option value="<%= e.id %>" <%= e.id===lesson.exam_id?'selected':'' %>><%= e.title %></option><% }) %></select>
+      <div class="tiny muted">💡 ตั้งค่าแบบทดสอบเป็น “ต้องเข้าสู่ระบบ” เพื่อให้คะแนนแสดงในตารางความก้าวหน้าของคอร์ส</div></div>
+    <label class="check"><input type="checkbox" name="is_preview" value="1" <%= lesson.is_preview ? 'checked' : '' %>> เปิดให้ดูตัวอย่างฟรี (ไม่ต้องลงทะเบียน)</label>
+    <div class="row between mt"><button class="btn primary">💾 บันทึกบทเรียน</button></div>
+  </form>
+  <form method="post" action="/courses/<%= course.id %>/lessons/<%= lesson.id %>/delete" onsubmit="return confirm('ลบบทเรียนนี้?')" class="mt"><button class="btn sm danger">ลบบทเรียน</button></form>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

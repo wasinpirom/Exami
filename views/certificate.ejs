@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เกียรติบัตร — <%= name %></title>
+<link rel="icon" href="data:,">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;500;700&family=Charm:wght@700&display=swap" rel="stylesheet">
+<style>
+  @page{size:A4 landscape;margin:0}
+  *{box-sizing:border-box} body{margin:0;background:#1b1d33;font-family:"Kanit",sans-serif;display:flex;flex-direction:column;align-items:center;padding:24px;min-height:100vh}
+  .bar{margin-bottom:18px;display:flex;gap:10px}
+  .bar button,.bar a{padding:10px 20px;border-radius:12px;border:0;background:linear-gradient(135deg,#6d5dfc,#ec4899);color:#fff;font:inherit;cursor:pointer;text-decoration:none}
+  .bar a{background:rgba(255,255,255,.15)}
+  .cert{width:297mm;height:210mm;max-width:100%;background:#fffdf7;position:relative;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);padding:18mm 22mm;text-align:center;color:#1d1b3a}
+  .cert::before{content:"";position:absolute;inset:8mm;border:2px solid #c9a44c;border-radius:6px;pointer-events:none}
+  .cert::after{content:"";position:absolute;inset:10.5mm;border:1px solid rgba(201,164,76,.55);border-radius:4px;pointer-events:none}
+  .blob{position:absolute;border-radius:50%;filter:blur(2px);opacity:.9}
+  .b1{width:110mm;height:110mm;left:-70mm;top:-70mm;background:radial-gradient(circle at 70% 70%,#a855f7,#6d5dfc 60%,transparent 61%)}
+  .b2{width:100mm;height:100mm;right:-68mm;bottom:-68mm;background:radial-gradient(circle at 30% 30%,#ec4899,#a855f7 60%,transparent 61%)}
+  .inner{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center}
+  .brand{letter-spacing:.3em;font-weight:500;color:#6d5dfc;font-size:14px}
+  h1{font-family:"Charm",cursive;font-size:56px;margin:6px 0 0;color:#1d1b3a}
+  .sub{font-weight:300;font-size:18px;color:#555;margin:6px 0 18px}
+  .name{font-family:"Charm",cursive;font-size:60px;line-height:1.2;background:linear-gradient(135deg,#6d5dfc,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent;padding:0 20px;border-bottom:2px solid #c9a44c;margin-bottom:14px}
+  .what{font-size:26px;font-weight:500;margin:6px 0} .detail{color:#555;font-weight:300}
+  .foot{display:flex;justify-content:space-between;align-items:flex-end;width:100%;margin-top:28px;font-size:14px;color:#444}
+  .sign{border-top:1px solid #999;padding-top:6px;min-width:60mm}
+  .seal{width:32mm;height:32mm;border-radius:50%;background:radial-gradient(circle,#f5d77a,#c9a44c);display:grid;place-items:center;color:#7a5a12;font-weight:700;box-shadow:0 0 0 3px #fffdf7,0 0 0 5px #c9a44c;font-size:12px;text-align:center;line-height:1.2}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.cert{box-shadow:none;width:297mm;height:210mm}}
+  @media(max-width:1100px){.cert{transform-origin:top center}}
+</style></head><body>
+<div class="bar"><button onclick="print()">🖨 พิมพ์ / บันทึกเป็น PDF</button><a href="<%= verifyUrl %>">← กลับ</a></div>
+<div class="cert">
+  <div class="blob b1"></div><div class="blob b2"></div>
+  <div class="inner">
+    <div class="brand"><%= site.site_name.toUpperCase() %> · CERTIFICATE</div>
+    <h1>เกียรติบัตร</h1>
+    <div class="sub">ขอมอบเกียรติบัตรฉบับนี้เพื่อแสดงว่า</div>
+    <div class="name"><%= name %></div>
+    <div class="detail"><%= kind %></div>
+    <div class="what">“<%= what %>”</div>
+    <div class="detail"><%= detail %></div>
+    <div class="foot">
+      <div class="sign"><%= issuer || '' %><br><span style="color:#888">ผู้สอน / ผู้ออกเกียรติบัตร</span></div>
+      <div class="seal">★<br>PASSED<br><%= new Date(String(date).replace(' ','T')+'Z').getFullYear()+543 %></div>
+      <div class="sign">ออกให้ ณ วันที่ <%= fmtDate(date).split(' ').slice(0,3).join(' ') %><br><span style="color:#888">รหัส <%= code %></span></div>
+    </div>
+  </div>
+</div>
+</body></html>

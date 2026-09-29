@@ -1,0 +1,296 @@
+<%- include('partials/head', { noAds: true }) %>
+<script type="application/json" id="init"><%- JSON.stringify({
+  exam: { id: exam.id, title: exam.title, description: exam.description, is_open: !!exam.is_open, in_library: !!exam.in_library, category: exam.category, settings: exam.settings },
+  questions, types: TYPES, usage, shareUrl: baseUrl + '/t/' + exam.share_token
+}).replace(/</g, '\\u003c') %></script>
+<script src="/static/js/builder.js"></script>
+<script src="/vendor/qrcode.js"></script>
+<script defer src="/vendor/alpine.js"></script>
+
+<div class="container page" x-data="builder()" x-cloak>
+  <% if (copied) { %><div class="alert ok">📋 คัดลอกชุดข้อสอบมาไว้ในพื้นที่ของคุณแล้ว — แก้ไขได้เลย (ตอนนี้ยัง “ปิดรับคำตอบ” อยู่ เปิดได้ในแท็บตั้งค่า)</div><% } %>
+  <div class="page-head">
+    <div class="grow">
+      <input type="text" x-model="exam.title" style="font-size:1.4rem;font-weight:700;border:0;padding:4px 0;background:transparent" placeholder="ชื่อแบบทดสอบ">
+      <div class="muted small"><span x-text="questions.length"></span> ข้อ · คะแนนเต็ม <b x-text="totalPoints"></b>
+        <% if (exam.source_owner_name) { %> · คัดลอกจากผลงานของ <%= exam.source_owner_name %><% } %></div>
+    </div>
+    <div class="row">
+      <a class="btn" href="/exams/<%= exam.id %>/results">📊 ผลสอบ</a>
+      <a class="btn" href="/exams/<%= exam.id %>/live">📡 ติดตามสด</a>
+      <a class="btn" href="/t/<%= exam.share_token %>" target="_blank">👁 ดูตัวอย่าง</a>
+      <button class="btn primary" @click="save()" :disabled="saving" x-text="saving ? 'กำลังบันทึก...' : (dirty ? '💾 บันทึก*' : '💾 บันทึกแล้ว')"></button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button :class="tab==='questions'&&'on'" @click="tab='questions'">คำถาม</button>
+    <button :class="tab==='settings'&&'on'" @click="tab='settings'">ตั้งค่าการสอบ</button>
+    <button :class="tab==='share'&&'on'" @click="tab='share'; $nextTick(()=>drawQR())">แชร์ / คลังข้อสอบ</button>
+  </div>
+
+  <!-- ================= QUESTIONS ================= -->
+  <div x-show="tab==='questions'">
+    <div class="field"><label>คำชี้แจง (แสดงก่อนเริ่มสอบ, รองรับ Markdown)</label><textarea x-model="exam.description" rows="3" placeholder="เช่น ข้อสอบกลางภาค วิชา... ใช้เวลา 30 นาที"></textarea></div>
+
+    <div class="card glow pad-sm mb" style="background:var(--grad-soft)">
+      <div class="row between"><div class="row" style="gap:14px"><div class="ico" style="margin:0;width:44px;height:44px">🤖</div><div><b>ให้ AI ช่วยออกข้อสอบ</b><div class="small muted">โมเดลโอเพนซอร์ส <b><%= aiModel %></b> บนเซิร์ฟเวอร์ — ฟรี ไม่มีค่าใช้จ่าย</div></div></div>
+        <div class="row" style="gap:8px"><button class="btn" @click="imp.open=true">📥 นำเข้าข้อสอบ (Word/ข้อความ)</button>
+        <% if (aiEnabled) { %><button class="btn ai" @click="ai.open=true">✨ สร้างคำถามด้วย AI</button><% } else { %><span class="badge">AI ปิดใช้งาน</span><% } %></div></div>
+    </div>
+
+    <template x-for="(q, i) in questions" :key="q.key">
+      <div class="card builder-q q-card">
+        <div class="row between">
+          <div class="row" style="gap:8px">
+            <span class="q-num" x-text="'ข้อ ' + (i+1)"></span>
+            <select :value="q.type" @change="changeType(q, $event.target.value)" style="width:auto;padding:5px 8px">
+              <template x-for="(t, k) in types" :key="k"><option :value="k" x-text="t.label" :selected="k===q.type"></option></template>
+            </select>
+            <label class="row small" style="gap:4px;margin:0">คะแนน <input type="number" min="0" step="0.5" x-model.number="q.points" style="width:80px;padding:5px 8px"></label>
+          </div>
+          <div class="q-tools">
+            <button class="btn sm ghost" @click="move(i,-1)" title="ขึ้น">↑</button>
+            <button class="btn sm ghost" @click="move(i,1)" title="ลง">↓</button>
+            <button class="btn sm ghost" @click="dup(i)" title="ทำสำเนา">⧉</button>
+            <button class="btn sm ghost" @click="remove(i)" title="ลบ" style="color:var(--bad)">🗑</button>
+          </div>
+        </div>
+
+        <div class="field mt">
+          <textarea x-model="q.prompt" rows="2" :placeholder="q.type==='fillblank' ? 'คำสั่ง เช่น เติมคำในช่องว่างให้ถูกต้อง' : 'พิมพ์โจทย์...'"></textarea>
+        </div>
+        <div class="row small mb">
+          <template x-if="q.image_file_id"><div class="row"><img :src="'/files/'+q.image_file_id" style="max-height:120px;border-radius:8px"><button class="btn sm danger" @click="q.image_file_id=null">ลบรูป</button></div></template>
+          <label class="btn sm" style="margin:0;font-weight:400">🖼 แนบรูปในโจทย์<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden @change="uploadImage(q,$event)"></label>
+        </div>
+
+        <!-- single / multiple -->
+        <template x-if="q.type==='single' || q.type==='multiple'">
+          <div>
+            <div class="small muted mb" x-text="q.type==='single' ? 'คลิกวงกลมหน้าคำตอบที่ถูก' : 'ติ๊กทุกคำตอบที่ถูก'"></div>
+            <template x-for="(o, oi) in q.data.options" :key="o.id">
+              <div class="opt-edit">
+                <input :type="q.type==='single'?'radio':'checkbox'" :checked="q.data.correct.includes(String(o.id))" @click="toggleCorrect(q, o.id)" style="width:18px;height:18px">
+                <input type="text" x-model="o.text" :placeholder="'ตัวเลือก ' + (oi+1)">
+                <button class="btn sm ghost" @click="q.data.options.splice(oi,1); q.data.correct=q.data.correct.filter(x=>x!==String(o.id))">✕</button>
+              </div>
+            </template>
+            <button class="btn sm" @click="q.data.options.push({id:uid(),text:''})">+ เพิ่มตัวเลือก</button>
+            <template x-if="q.type==='multiple'"><label class="check small"><input type="checkbox" x-model="q.data.partial"> ให้คะแนนบางส่วน (ตอบถูกบางข้อได้คะแนนตามสัดส่วน, ตอบผิดหักคะแนน)</label></template>
+          </div>
+        </template>
+
+        <template x-if="q.type==='truefalse'">
+          <div class="row"><b class="small">คำตอบที่ถูก:</b>
+            <label class="check"><input type="radio" :name="'tf'+q.key" :checked="q.data.correct===true" @change="q.data.correct=true"> ถูก</label>
+            <label class="check"><input type="radio" :name="'tf'+q.key" :checked="q.data.correct===false" @change="q.data.correct=false"> ผิด</label>
+          </div>
+        </template>
+
+        <template x-if="q.type==='matching'">
+          <div>
+            <div class="small muted mb">ใส่คู่ที่ถูกต้อง (ระบบจะสลับฝั่งขวาให้อัตโนมัติ)</div>
+            <template x-for="(p, pi) in q.data.pairs" :key="p.id">
+              <div class="opt-edit"><input type="text" x-model="p.left" placeholder="ฝั่งซ้าย"> <span>→</span> <input type="text" x-model="p.right" placeholder="คู่ที่ถูก">
+                <button class="btn sm ghost" @click="q.data.pairs.splice(pi,1)">✕</button></div>
+            </template>
+            <button class="btn sm" @click="q.data.pairs.push({id:uid(),left:'',right:''})">+ เพิ่มคู่</button>
+            <div class="field mt"><label>ตัวลวงเพิ่มเติม <span class="hint">(ไม่บังคับ, บรรทัดละ 1 ตัว)</span></label><textarea x-model="q.data.distractorsText" rows="2"></textarea></div>
+          </div>
+        </template>
+
+        <template x-if="q.type==='ordering'">
+          <div>
+            <div class="small muted mb">ใส่รายการตาม “ลำดับที่ถูกต้อง” (ระบบจะสลับให้ผู้เรียนเรียงเอง)</div>
+            <template x-for="(it, ii) in q.data.items" :key="it.id">
+              <div class="opt-edit"><b x-text="ii+1"></b><input type="text" x-model="it.text">
+                <button class="btn sm ghost" @click="if(ii>0){const a=q.data.items;[a[ii-1],a[ii]]=[a[ii],a[ii-1]];q.data.items=[...a]}">↑</button>
+                <button class="btn sm ghost" @click="q.data.items.splice(ii,1)">✕</button></div>
+            </template>
+            <button class="btn sm" @click="q.data.items.push({id:uid(),text:''})">+ เพิ่มรายการ</button>
+          </div>
+        </template>
+
+        <template x-if="q.type==='short'">
+          <div class="field"><label>คำตอบที่ยอมรับ <span class="hint">(บรรทัดละ 1 คำตอบ — ถ้าเว้นว่าง ต้องตรวจเองหรือให้ AI ตรวจ)</span></label>
+            <textarea x-model="q.data.acceptedText" rows="2" placeholder="กรุงเทพ&#10;กรุงเทพมหานคร"></textarea>
+            <label class="check small"><input type="checkbox" x-model="q.data.case_sensitive"> ตัวพิมพ์เล็ก/ใหญ่ต้องตรงกัน</label></div>
+        </template>
+
+        <template x-if="q.type==='fillblank'">
+          <div class="field"><label>ข้อความ — ใส่คำตอบในวงเล็บปีกกาคู่ <code>{{คำตอบ}}</code> หลายคำตอบใช้ <code>|</code> คั่น</label>
+            <textarea x-model="q.data.text" rows="3" placeholder="เมืองหลวงของประเทศไทยคือ {{กรุงเทพ|กรุงเทพมหานคร}} ตั้งอยู่ริมแม่น้ำ {{เจ้าพระยา}}"></textarea>
+            <div class="small muted">พบช่องว่าง <b x-text="blankCount(q)"></b> ช่อง (คะแนนแบ่งตามช่องที่ตอบถูก)</div></div>
+        </template>
+
+        <template x-if="q.type==='essay'">
+          <div class="grid-2">
+            <div class="field"><label>เกณฑ์การให้คะแนน (Rubric) <span class="hint">— AI ใช้ในการตรวจ</span></label><textarea x-model="q.data.rubric" rows="3" placeholder="เช่น อธิบายหลักการได้ถูกต้อง 3 คะแนน, ยกตัวอย่างได้ 2 คะแนน"></textarea></div>
+            <div class="field"><label>ตัวอย่างคำตอบ / แนวคำตอบ</label><textarea x-model="q.data.sample_answer" rows="3"></textarea></div>
+            <div class="field"><label>จำนวนคำขั้นต่ำ <span class="hint">(0 = ไม่กำหนด)</span></label><input type="number" min="0" x-model.number="q.data.min_words"></div>
+          </div>
+        </template>
+
+        <template x-if="q.type==='link'">
+          <div>
+            <label class="check"><input type="checkbox" x-model="q.data.youtube_only"> รับเฉพาะลิงก์ YouTube</label>
+            <div class="field"><label>เกณฑ์การให้คะแนน</label><textarea x-model="q.data.rubric" rows="2"></textarea></div>
+          </div>
+        </template>
+
+        <template x-if="q.type==='file'">
+          <div class="grid-2">
+            <div class="field"><label>นามสกุลไฟล์ที่รับ <span class="hint">(คั่นด้วย , เว้นว่าง = ทุกชนิด)</span></label><input type="text" x-model="q.data.accept" placeholder=".pdf,.docx,.jpg"></div>
+            <div class="field"><label>เกณฑ์การให้คะแนน</label><textarea x-model="q.data.rubric" rows="2"></textarea></div>
+            <div class="small muted">ไฟล์ของผู้เรียนนับรวมในพื้นที่ของคุณ (<%= fmtBytes(usage.used) %> / <%= fmtBytes(usage.quota) %>)</div>
+          </div>
+        </template>
+
+        <details class="mt small"><summary class="muted" style="cursor:pointer">💡 คำอธิบายเฉลย (แสดงหลังส่งคำตอบ ถ้าตั้งค่าให้แสดง)</summary>
+          <textarea x-model="q.explanation" rows="2" class="mt"></textarea></details>
+        <template x-if="problems(q).length"><div class="small" style="color:var(--warn);margin-top:6px" x-text="'⚠ ' + problems(q).join(' · ')"></div></template>
+      </div>
+    </template>
+
+    <div class="card" style="border-style:dashed;text-align:center">
+      <div class="muted small mb">เพิ่มคำถาม</div>
+      <div class="row" style="justify-content:center">
+        <template x-for="(t, k) in types" :key="k"><button class="btn sm" @click="add(k)" x-text="'+ ' + t.label"></button></template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SETTINGS ================= -->
+  <div x-show="tab==='settings'" class="grid-2">
+    <div class="card">
+      <h3>การเข้าสอบ</h3>
+      <label class="check"><input type="checkbox" x-model="exam.is_open"> <b>เปิดรับคำตอบ</b></label>
+      <label class="check"><input type="checkbox" x-model="exam.settings.require_login"> ต้องเข้าสู่ระบบก่อนสอบ <span class="hint">(ไม่ติ๊ก = ใครมีลิงก์ก็ทำได้ แค่กรอกชื่อ)</span></label>
+      <label class="check"><input type="checkbox" x-model="exam.settings.collect_ident"> ให้กรอกรหัสประจำตัว</label>
+      <div class="field" x-show="exam.settings.collect_ident"><input type="text" x-model="exam.settings.ident_label" placeholder="รหัสนักศึกษา / เลขที่"></div>
+      <div class="field"><label>รหัสเข้าสอบ <span class="hint">(ไม่บังคับ)</span></label><input type="text" x-model="exam.settings.access_code" placeholder="เว้นว่าง = ไม่ต้องใช้รหัส"></div>
+      <div class="grid-2">
+        <div class="field"><label>เปิดสอบ</label><input type="datetime-local" x-model="exam.settings.open_at"></div>
+        <div class="field"><label>ปิดสอบ</label><input type="datetime-local" x-model="exam.settings.close_at"></div>
+        <div class="field"><label>เวลาทำ (นาที) <span class="hint">0 = ไม่จำกัด</span></label><input type="number" min="0" x-model.number="exam.settings.time_limit_min"></div>
+        <div class="field"><label>ทำได้กี่ครั้ง <span class="hint">0 = ไม่จำกัด</span></label><input type="number" min="0" x-model.number="exam.settings.max_attempts"></div>
+      </div>
+      <div class="field"><label>🎲 สุ่มข้อสอบให้แต่ละคน <span class="hint">(จำนวนข้อที่สุ่มจากทั้งหมด <span x-text="questions.length"></span> ข้อ · 0 = ใช้ทุกข้อ)</span></label>
+        <input type="number" min="0" :max="questions.length" x-model.number="exam.settings.draw_count">
+        <div class="tiny muted">ทำเป็นคลังข้อสอบ เช่น มี 50 ข้อ สุ่มให้แต่ละคน 20 ข้อ ลดการลอกกัน</div></div>
+    </div>
+    <div class="card">
+      <h3>การแสดงผลและการตรวจ</h3>
+      <label class="check"><input type="checkbox" x-model="exam.settings.shuffle_questions"> สุ่มลำดับคำถาม</label>
+      <label class="check"><input type="checkbox" x-model="exam.settings.shuffle_options"> สุ่มลำดับตัวเลือก</label>
+      <label class="check"><input type="checkbox" x-model="exam.settings.one_per_page"> แสดงทีละข้อ</label>
+      <label class="check"><input type="checkbox" x-model="exam.settings.show_score"> แสดงคะแนนให้ผู้เรียนเห็นทันทีหลังส่ง</label>
+      <div class="field"><label>แสดงเฉลย</label>
+        <select x-model="exam.settings.show_answers">
+          <option value="never">ไม่แสดง</option><option value="after_submit">ทันทีหลังส่ง</option><option value="after_close">หลังปิดสอบ</option>
+        </select></div>
+      <div class="field"><label>เกณฑ์ผ่าน (%)</label><input type="number" min="0" max="100" x-model.number="exam.settings.pass_percent"></div>
+      <label class="check"><input type="checkbox" x-model="exam.settings.certificate"> 🎓 ออกเกียรติบัตรให้ผู้ที่สอบผ่าน (พิมพ์/บันทึก PDF ได้)</label>
+      <label class="check"><input type="checkbox" x-model="exam.settings.leaderboard"> 🏆 แสดง Leaderboard 10 อันดับแรกในหน้าผลสอบ</label>
+      <label class="check"><input type="checkbox" x-model="exam.settings.ai_auto_grade" <%= aiEnabled ? '' : 'disabled' %>> 🤖 ให้ AI ตรวจข้อเขียนอัตโนมัติทันทีที่ผู้เรียนส่ง <span class="hint">(คุณปรับคะแนนต่อจาก AI ได้ภายหลัง)</span></label>
+    </div>
+  </div>
+
+  <!-- ================= SHARE ================= -->
+  <div x-show="tab==='share'" class="grid-2">
+    <div class="card">
+      <h3>🔗 ลิงก์ให้ผู้เรียนทำแบบทดสอบ</h3>
+      <div class="copybox"><input type="text" readonly :value="shareUrl" @focus="$event.target.select()"><button class="btn" @click="copyText(shareUrl)">คัดลอก</button></div>
+      <div class="qr mt"><div id="qr" style="width:180px"></div></div>
+      <div class="row mt"><a class="btn sm" href="/exams/<%= exam.id %>/print" target="_blank">🖨 พิมพ์ข้อสอบ (กระดาษ)</a><a class="btn sm" href="/exams/<%= exam.id %>/print?key=1" target="_blank">🔑 พิมพ์เฉลย</a></div>
+      <div class="row">
+        <form method="post" action="/exams/<%= exam.id %>/new-link" onsubmit="return confirm('สร้างลิงก์ใหม่? ลิงก์เดิมจะใช้ไม่ได้อีก')"><button class="btn sm">สร้างลิงก์ใหม่</button></form>
+        <form method="post" action="/exams/<%= exam.id %>/duplicate"><button class="btn sm">ทำสำเนาแบบทดสอบ</button></form>
+        <form method="post" action="/exams/<%= exam.id %>/delete" onsubmit="return confirm('ลบแบบทดสอบนี้และผลสอบทั้งหมดถาวร?')"><button class="btn sm danger">ลบแบบทดสอบ</button></form>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📚 แบ่งปันในคลังข้อสอบสาธารณะ</h3>
+      <label class="check"><input type="checkbox" x-model="exam.in_library"> เผยแพร่ชุดข้อสอบนี้ในคลัง ให้ผู้อื่นคัดลอกไปใช้ได้</label>
+      <div class="alert warn small">⚠ ผู้ที่คัดลอกไปจะเห็นเฉลยทั้งหมด — ไม่ควรเผยแพร่ข้อสอบที่กำลังใช้สอบจริง</div>
+      <div class="field"><label>หมวดหมู่</label><input type="text" x-model="exam.category" placeholder="เช่น คณิตศาสตร์ ม.3, Machine Learning"></div>
+      <a href="/library/<%= exam.id %>" target="_blank" class="small">ดูหน้าคลังของชุดนี้ →</a>
+    </div>
+  </div>
+
+  <div class="sticky-bar"><div class="row between">
+    <span class="small muted"><span x-show="dirty">มีการแก้ไขที่ยังไม่บันทึก (Ctrl+S)</span><span x-show="!dirty && lastSaved" x-text="'บันทึกล่าสุด ' + lastSaved"></span></span>
+    <button class="btn primary" @click="save()" :disabled="saving" x-text="saving ? 'กำลังบันทึก...' : '💾 บันทึก'"></button>
+  </div></div>
+
+  <!-- ================= AI MODAL ================= -->
+  <div class="modal-bg" x-show="ai.open" @click.self="if(!ai.busy) ai.open=false">
+    <div class="modal">
+      <div class="row between"><h2>✨ สร้างคำถามด้วย AI</h2><button class="btn sm ghost" @click="ai.open=false" :disabled="ai.busy">✕</button></div>
+      <div x-show="!ai.results.length">
+        <div class="field"><label>หัวข้อ</label><input type="text" x-model="ai.topic" placeholder="เช่น ระบบปฏิบัติการ: การจัดการหน่วยความจำ"></div>
+        <div class="field"><label>หรือวางเนื้อหาบทเรียน <span class="hint">(AI จะออกข้อสอบจากเนื้อหานี้เท่านั้น — แม่นยำกว่า)</span></label><textarea x-model="ai.source_text" rows="5"></textarea></div>
+        <div class="field"><label>ประเภทคำถาม</label><div class="row">
+          <template x-for="k in ['single','multiple','truefalse','matching','ordering','short','fillblank','essay']" :key="k">
+            <label class="check small" style="margin:0"><input type="checkbox" :value="k" x-model="ai.types"> <span x-text="typeLabel(k)"></span></label>
+          </template></div></div>
+        <div class="row">
+          <div class="field"><label>จำนวนข้อ</label><input type="number" min="1" max="30" x-model.number="ai.count" style="width:90px"></div>
+          <div class="field"><label>ความยาก</label><select x-model="ai.difficulty"><option value="easy">ง่าย</option><option value="medium">ปานกลาง</option><option value="hard">ยาก</option></select></div>
+          <div class="field"><label>ภาษา</label><select x-model="ai.language"><option value="th">ไทย</option><option value="en">English</option></select></div>
+          <div class="field"><label>คะแนน/ข้อ</label><input type="number" min="0" x-model.number="ai.points" style="width:80px"></div>
+        </div>
+        <div class="alert info small">AI อาจผิดพลาดได้ — ตรวจทานทุกข้อก่อนใช้งานจริง · โมเดลเล็กอาจใช้เวลาสักครู่</div>
+        <button class="btn ai" @click="aiGenerate()" :disabled="ai.busy || (!ai.topic.trim() && !ai.source_text.trim())" x-text="ai.busy ? '⏳ กำลังสร้าง...' : '✨ สร้างคำถาม'"></button>
+      </div>
+      <div class="small mt" x-show="ai.status" x-text="ai.status"></div>
+      <div class="alert bad mt" x-show="ai.error" x-text="ai.error"></div>
+      <div x-show="ai.results.length" class="mt">
+        <template x-for="(q, i) in ai.results" :key="q.key">
+          <label class="card pad-sm mb" style="display:block;font-weight:400;cursor:pointer">
+            <div class="row"><input type="checkbox" x-model="q.pick"><b x-text="(i+1) + '. ' + (q.prompt || '')"></b><span class="badge" x-text="typeLabel(q.type)"></span></div>
+            <div class="pre small muted" style="margin-left:26px" x-text="aiPreview(q)"></div>
+          </label>
+        </template>
+        <div class="row"><button class="btn primary" @click="aiAdd()">เพิ่มข้อที่เลือกลงแบบทดสอบ</button><button class="btn" @click="ai.results=[]; ai.status=''">สร้างใหม่</button></div>
+      </div>
+    </div>
+  </div>
+  <!-- ================= IMPORT MODAL ================= -->
+  <div class="modal-bg" x-show="imp.open" @click.self="if(!imp.busy) imp.open=false">
+    <div class="modal">
+      <div class="row between"><h2>📥 นำเข้าข้อสอบ</h2><button class="btn sm ghost" @click="imp.open=false" :disabled="imp.busy">✕</button></div>
+      <div x-show="!imp.results.length">
+        <p class="small muted">คัดลอกข้อสอบจาก Word / PDF / Google Docs มาวางได้เลย เว้นบรรทัดระหว่างข้อ รูปแบบที่อ่านได้อัตโนมัติ:</p>
+        <pre class="small" style="background:var(--bg-soft);padding:12px;border-radius:12px;white-space:pre-wrap;margin-top:0">1. ข้อใดคือระบบปฏิบัติการ
+ก. Linux
+ข. Excel
+ตอบ ก
+
+2. ดวงอาทิตย์ขึ้นทางทิศตะวันออก
+ตอบ ถูก
+
+3. เมืองหลวงของไทยคือ {{กรุงเทพ}}</pre>
+        <textarea x-model="imp.text" rows="10" placeholder="วางข้อสอบที่นี่..."></textarea>
+        <div class="row mt">
+          <button class="btn primary" @click="impParse()" :disabled="!imp.text.trim()">⚡ อ่านอัตโนมัติ (เร็ว)</button>
+          <% if (aiEnabled) { %><button class="btn ai" @click="impAI()" :disabled="imp.busy || !imp.text.trim()" x-text="imp.busy ? '⏳ AI กำลังแปลง...' : '🤖 ให้ AI แปลง (รูปแบบไหนก็ได้)'"></button><% } %>
+        </div>
+      </div>
+      <div class="small mt" x-show="imp.status" x-text="imp.status"></div>
+      <div class="alert bad mt" x-show="imp.error" x-text="imp.error"></div>
+      <div x-show="imp.results.length" class="mt">
+        <template x-for="(q, i) in imp.results" :key="q.key">
+          <label class="card pad-sm mb" style="display:block;font-weight:400;cursor:pointer">
+            <div class="row"><input type="checkbox" x-model="q.pick"><b x-text="(i+1) + '. ' + (q.prompt || '')"></b><span class="badge" x-text="typeLabel(q.type)"></span></div>
+            <div class="pre small muted" style="margin-left:26px" x-text="aiPreview(q)"></div>
+          </label>
+        </template>
+        <div class="row"><button class="btn primary" @click="impAdd()">เพิ่มข้อที่เลือกลงแบบทดสอบ</button><button class="btn" @click="imp.results=[]; imp.status=''">กลับไปแก้ข้อความ</button></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<%- include('partials/foot', { noAds: true }) %>

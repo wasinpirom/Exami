@@ -1,0 +1,99 @@
+<%- include('partials/head', { noAds: true }) %>
+<%
+  const data = items.map(it => ({ qid: it.q.id, aid: it.a && it.a.id, points: it.q.points, status: it.a ? it.a.status : 'none',
+    auto: it.a ? it.a.auto_score : null, ai: it.a ? it.a.ai_score : null, ai_feedback: it.a ? it.a.ai_feedback : '',
+    manual: it.a ? it.a.manual_score : null, comment: it.a ? it.a.comment : '', final: it.final }));
+%>
+<script type="application/json" id="init"><%- JSON.stringify({ items: data, attempt: { id: attempt.id, score: attempt.score, max: attempt.max_score, pending: attempt.pending_count } }).replace(/</g,'\\u003c') %></script>
+<script defer src="/vendor/alpine.js"></script>
+<script>
+function grader() {
+  const init = JSON.parse(document.getElementById('init').textContent);
+  return {
+    items: init.items.map(x => ({ ...x, edit: x.manual ?? x.final ?? 0, saving: false })),
+    att: init.attempt, aiBusy: false, aiMsg: '',
+    async save(it, opts = {}) {
+      if (!it.aid) return;
+      it.saving = true;
+      try {
+        const body = { comment: it.comment };
+        if (opts.revert) body.manual_score = null; else if (opts.confirm) { body.confirm = true; body.manual_score = null; } else body.manual_score = it.edit;
+        const r = await api('/api/answers/' + it.aid + '/grade', { body });
+        Object.assign(it, { status: r.answer.status, manual: r.answer.manual_score, final: r.answer.final, edit: r.answer.manual_score ?? r.answer.final ?? 0 });
+        this.att.score = r.attempt.score; this.att.pending = r.attempt.pending_count;
+        toast('บันทึกคะแนนแล้ว');
+      } catch (e) { alert(e.message); }
+      it.saving = false;
+    },
+    bump(it, d) { it.edit = Math.max(0, Math.min(it.points, Math.round(((Number(it.edit) || 0) + d) * 100) / 100)); },
+    async aiGrade(regrade) {
+      this.aiBusy = true; this.aiMsg = 'ส่งงานให้ AI...';
+      try {
+        const { job_id } = await api('/api/attempts/' + this.att.id + '/ai-grade', { body: { regrade } });
+        await waitJob(job_id, j => this.aiMsg = j.status === 'queued' ? 'รอคิว AI...' : '🤖 AI กำลังอ่านและให้คะแนน...');
+        this.aiMsg = 'เสร็จแล้ว กำลังโหลดใหม่...'; location.reload();
+      } catch (e) { this.aiMsg = '❌ ' + e.message; this.aiBusy = false; }
+    },
+    label(s) { return { auto: 'ตรวจอัตโนมัติ', pending: 'รอตรวจ', ai: 'AI ให้คะแนน (ยังไม่ยืนยัน)', graded: 'ผู้สอนตรวจแล้ว', none: 'ไม่ได้ตอบ' }[s] || s; },
+  };
+}
+</script>
+<div class="container page narrow" x-data="grader()" x-cloak>
+  <a href="/exams/<%= exam.id %>/results" class="small">← กลับหน้าผลสอบ</a>
+  <div class="card mt">
+    <div class="row between">
+      <div><h2 style="margin:0"><%= attempt.taker_name %></h2>
+        <div class="small muted"><%= attempt.taker_ident %> · ส่งเมื่อ <%= fmtDate(attempt.submitted_at) %> · สลับแท็บ <%= attempt.tab_switches %> ครั้ง</div></div>
+      <div style="text-align:right"><div class="score-big" style="font-size:2.2rem"><span x-text="att.score"></span><span class="muted" style="font-size:1.1rem"> / <%= attempt.max_score %></span></div>
+        <span class="badge warn" x-show="att.pending" x-text="'รอตรวจ ' + att.pending + ' ข้อ'"></span></div>
+    </div>
+    <% if (aiEnabled) { %>
+    <div class="row mt">
+      <button class="btn ai" @click="aiGrade(false)" :disabled="aiBusy">🤖 ให้ AI ตรวจข้อที่รอตรวจ</button>
+      <button class="btn sm" @click="aiGrade(true)" :disabled="aiBusy">ให้ AI ตรวจใหม่ (รวมข้อที่ AI ตรวจแล้ว)</button>
+      <span class="small muted" x-text="aiMsg"></span>
+    </div>
+    <% } %>
+    <div class="row mt"><% if (prev) { %><a class="btn sm" href="/exams/<%= exam.id %>/attempts/<%= prev %>">← คนก่อนหน้า</a><% } %>
+      <% if (next) { %><a class="btn sm" href="/exams/<%= exam.id %>/attempts/<%= next %>">คนถัดไป →</a><% } %>
+      <a class="btn sm" href="/r/<%= attempt.token %>" target="_blank">มุมมองผู้เรียน</a></div>
+  </div>
+
+  <% items.forEach((it, i) => { const yt = it.type==='link' && it.resp && String(it.resp.url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/); %>
+  <div class="card q-card" x-data="{ it: items[<%= i %>] }">
+    <div class="q-head"><span class="q-num">ข้อ <%= i+1 %> <span class="badge"><%= it.typeLabel %></span></span>
+      <span class="badge" :class="{'warn': it.status==='pending', 'brand': it.status==='ai', 'ok': it.status==='graded'||it.status==='auto'}" x-text="label(it.status)"></span></div>
+    <div class="q-prompt"><%= it.q.prompt %></div>
+    <% if (it.type==='fillblank') { %><div class="small muted pre"><%= JSON.parse(it.q.data).text %></div><% } %>
+    <div class="card pad-sm" style="background:var(--bg-soft)">
+      <div class="small muted">คำตอบของผู้เรียน</div>
+      <div class="pre"><%= it.responseText || '— ไม่ได้ตอบ —' %></div>
+      <% if (it.type==='link' && it.resp && it.resp.url) { %><a href="<%= /^https?:\/\//i.test(it.resp.url) ? it.resp.url : '#' %>" target="_blank" rel="noopener noreferrer" class="small">เปิดลิงก์ ↗</a>
+        <% if (yt) { %><div class="video mt"><iframe src="https://www.youtube.com/embed/<%= yt[1] %>" allowfullscreen></iframe></div><% } %><% } %>
+      <% if (it.type==='file' && it.resp && it.resp.file_id) { %><a class="btn sm mt" href="/files/<%= it.resp.file_id %>" target="_blank">📎 เปิด/ดาวน์โหลดไฟล์</a><% } %>
+    </div>
+    <% if (it.correct) { %><div class="small mt" style="color:var(--ok)"><b>เฉลย / แนวคำตอบ:</b> <span class="pre"><%= it.correct %></span></div><% } %>
+    <% if (it.a) { %>
+    <div class="small mt muted">
+      <template x-if="it.auto!=null"><span>อัตโนมัติ: <b x-text="it.auto"></b> · </span></template>
+      <template x-if="it.ai!=null"><span>🤖 AI: <b x-text="it.ai"></b> · </span></template>
+      <span>คะแนนปัจจุบัน: <b x-text="it.status==='pending' ? '-' : it.final"></b> / <%= it.q.points %></span>
+    </div>
+    <template x-if="it.ai_feedback"><div class="alert info small mt pre" style="margin-bottom:0" x-text="'🤖 ' + it.ai_feedback"></div></template>
+    <div class="row mt">
+      <button class="btn sm" @click="bump(it,-1)">−1</button><button class="btn sm" @click="bump(it,-0.5)">−½</button>
+      <input type="number" step="0.25" min="0" :max="it.points" x-model.number="it.edit" style="width:90px">
+      <button class="btn sm" @click="bump(it,0.5)">+½</button><button class="btn sm" @click="bump(it,1)">+1</button>
+      <span class="small muted">/ <%= it.q.points %></span>
+    </div>
+    <input type="text" class="mt" x-model="it.comment" placeholder="ความคิดเห็นถึงผู้เรียน (ไม่บังคับ)">
+    <div class="row mt">
+      <button class="btn sm primary" @click="save(it)" :disabled="it.saving">💾 บันทึกคะแนน</button>
+      <template x-if="it.status==='ai'"><button class="btn sm ok" @click="save(it,{confirm:true})">✔ ยืนยันคะแนน AI</button></template>
+      <template x-if="it.manual!=null"><button class="btn sm ghost" @click="save(it,{revert:true})">ยกเลิกคะแนนที่ปรับเอง</button></template>
+    </div>
+    <% } %>
+  </div>
+  <% }) %>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

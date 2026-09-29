@@ -1,0 +1,147 @@
+<%- include('partials/head') %>
+<section class="hero">
+  <div class="grid-bg"></div>
+  <div class="orb" style="width:420px;height:420px;background:#6d5dfc;left:-120px;top:40px"></div>
+  <div class="orb" style="width:360px;height:360px;background:#ec4899;right:-80px;top:180px"></div>
+  <div class="container hero-grid">
+    <div>
+      <span class="eyebrow"><span class="dot"></span> ฟรี 100% · โอเพนซอร์ส · AI รันบนเซิร์ฟเวอร์เอง</span>
+      <h1>สร้างข้อสอบออนไลน์<br><span class="grad-text"><span class="nw">ให้ AI ช่วยคิด</span> <span class="nw">ช่วยตรวจ</span></span></h1>
+      <p class="lead"><%= site.site_tagline %> ออกข้อสอบได้ใน 1 นาที แชร์ลิงก์ให้ผู้เรียนทำ รู้ผลทันที พร้อมคอร์สเรียนที่ติดตามได้ว่าผู้เรียนดูอะไรไปแล้วบ้าง</p>
+      <div class="hero-cta">
+        <% if (user) { %><a class="btn primary xl" href="/dashboard">ไปที่แดชบอร์ด →</a>
+        <% } else { %><a class="btn primary xl" href="/register">🚀 เริ่มสร้างข้อสอบฟรี</a><a class="btn xl" href="/library">ดูคลังข้อสอบ</a><% } %>
+      </div>
+      <div class="trust">
+        <div><b data-count="<%= stats.users %>">0</b><span>ผู้ใช้งาน</span></div>
+        <div><b data-count="<%= stats.exams %>">0</b><span>แบบทดสอบ</span></div>
+        <div><b data-count="<%= stats.attempts %>">0</b><span>ครั้งที่ส่งคำตอบ</span></div>
+        <div><b>10</b><span>รูปแบบคำถาม</span></div>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <div class="float-card fc-ai">
+        <div class="row" style="gap:8px"><span class="badge grad">✨ AI</span><span class="small muted">กำลังสร้างคำถาม</span></div>
+        <div class="small typing" id="heroType" style="margin-top:10px;min-height:44px"></div>
+      </div>
+      <div class="float-card fc-exam">
+        <div class="row between"><span class="q-num">ข้อ 3 จาก 20</span><span class="badge">⏱ 12:48</span></div>
+        <div style="font-weight:600;margin:10px 0 4px">หน่วยความจำใดที่ข้อมูลหายเมื่อปิดเครื่อง?</div>
+        <div class="mock-opt"><span class="l">A</span>ROM</div>
+        <div class="mock-opt on"><span class="l">B</span>RAM <span style="margin-left:auto">✓</span></div>
+        <div class="mock-opt"><span class="l">C</span>SSD</div>
+        <div class="mock-opt"><span class="l">D</span>Flash Drive</div>
+        <div class="bar" style="margin-top:14px"><i style="width:15%"></i></div>
+      </div>
+      <div class="float-card fc-score">
+        <div class="row" style="gap:14px">
+          <svg width="74" height="74" viewBox="0 0 36 36"><defs><linearGradient id="hg" x1="0" x2="1"><stop offset="0" stop-color="#6d5dfc"/><stop offset="1" stop-color="#ec4899"/></linearGradient></defs>
+            <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--bg-soft)" stroke-width="4"/><circle cx="18" cy="18" r="15.5" fill="none" stroke="url(#hg)" stroke-width="4" stroke-linecap="round" stroke-dasharray="97.4" stroke-dashoffset="8" transform="rotate(-90 18 18)"/>
+            <text x="18" y="21.5" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor">92%</text></svg>
+          <div><b>ยอดเยี่ยม! 🎉</b><div class="tiny muted">ผ่านเกณฑ์ · ได้รับเกียรติบัตร</div></div>
+        </div>
+      </div>
+      <div class="float-card fc-chip">🤖 AI ตรวจข้อเขียนแล้ว +4.5 คะแนน</div>
+    </div>
+  </div>
+</section>
+
+<section style="padding:10px 0 20px">
+  <div class="marquee"><div class="marquee-track">
+    <% const chips = ['🔘 ตัวเลือกเดียว','☑️ หลายคำตอบ','✔️ ถูก / ผิด','🔗 จับคู่','🔢 เรียงลำดับ','✏️ เติมคำตอบ','🧩 เติมคำในช่องว่าง','📝 เขียนอธิบาย','▶️ แนบลิงก์ YouTube','📎 แนบไฟล์คำตอบ','🎲 สุ่มข้อจากคลัง','🏆 Leaderboard','🎓 เกียรติบัตร','📡 ติดตามการสอบสด']; %>
+    <% for (let k=0;k<2;k++) chips.forEach(c => { %><span class="chip"><%= c %></span><% }) %>
+  </div></div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head reveal"><span class="eyebrow">✨ ทุกอย่างที่ครูต้องการ</span><h2 class="mt">ครบในที่เดียว <span class="grad-text">ไม่มีค่าใช้จ่าย</span></h2><p>ตั้งแต่ออกข้อสอบ สอบ ตรวจ ไปจนถึงวิเคราะห์ผล และสอนเป็นคอร์ส</p></div>
+    <div class="bento">
+      <div class="card wide reveal"><div class="ico">🤖</div><h3>AI ออกข้อสอบให้ใน 1 นาที</h3><p>พิมพ์หัวข้อ หรือวางเนื้อหาบทเรียน AI จะสร้างคำถามพร้อมเฉลยและคำอธิบาย มีข้อสอบเดิมใน Word ก็วางให้ AI แปลงเข้าระบบได้เลย</p></div>
+      <div class="card wide reveal"><div class="ico c2">🧠</div><h3>AI ตรวจข้อเขียนตาม Rubric</h3><p>ให้คะแนนพร้อมคำแนะนำรายข้อ ครูกด +/− ปรับต่อจากคะแนน AI หรือกดยืนยันได้ในคลิกเดียว</p></div>
+      <div class="card reveal"><div class="ico c3">⚡</div><h3>รู้ผลทันที</h3><p>ข้อปรนัยตรวจอัตโนมัติ ผู้เรียนเห็นคะแนน เฉลย และได้เกียรติบัตรเมื่อสอบผ่าน</p></div>
+      <div class="card reveal"><div class="ico c4">📡</div><h3>ติดตามการสอบสด</h3><p>เห็นว่าใครกำลังทำ ตอบไปกี่ข้อ เหลือเวลาเท่าไร และสลับแท็บออกไปกี่ครั้ง</p></div>
+      <div class="card reveal"><div class="ico">📊</div><h3>วิเคราะห์ผลเชิงลึก</h3><p>สถิติ กราฟการกระจายคะแนน วิเคราะห์รายข้อ ส่งออก Excel และพิมพ์ข้อสอบลงกระดาษได้</p></div>
+      <div class="card xwide reveal"><div class="ico c2">🎓</div><h3>คอร์สเรียน + ติดตามความก้าวหน้า</h3><p>ฝังวิดีโอ YouTube วัดได้ว่าผู้เรียนดูไปกี่ % ใส่โน้ต ลิงก์เอกสาร และแบบทดสอบท้ายบท เรียนครบรับเกียรติบัตรอัตโนมัติ</p></div>
+      <div class="card reveal"><div class="ico c3">📚</div><h3>คลังข้อสอบแบ่งปัน</h3><p>คัดลอกชุดข้อสอบของครูท่านอื่นมาใช้ แก้ไข แล้วแชร์ต่อได้</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:20px">
+  <div class="container grid-2" style="align-items:center;gap:48px">
+    <div class="reveal">
+      <span class="eyebrow">🔒 AI โอเพนซอร์ส ไม่มีค่า API</span>
+      <h2 class="mt" style="font-size:clamp(1.7rem,3vw,2.4rem)">AI ทำงานบน<span class="nw">เซิร์ฟเวอร์ของเราเอง</span><br><span class="grad-text">ข้อมูลผู้เรียนไม่รั่วไหล</span></h2>
+      <p class="muted" style="font-size:1.05rem">ใช้โมเดลโอเพนซอร์สอย่าง Qwen และ Gemma ผ่าน Ollama ระบบแจ้งเตือนเมื่อมีโมเดลใหม่ที่เก่งกว่า และอัปเกรดได้ในคลิกเดียวจากหน้าผู้ดูแล</p>
+      <div class="row mt"><span class="chip">🇹🇭 ภาษาไทย</span><span class="chip">🔄 อัปเดตโมเดลได้เอง</span><span class="chip">💸 ฟรีตลอด</span></div>
+    </div>
+    <div class="terminal reveal">
+      <div class="terminal-bar"><i></i><i></i><i></i></div>
+      <div class="terminal-body" id="aiDemo"></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head reveal"><h2>เริ่มได้ใน <span class="grad-text">3 ขั้นตอน</span></h2></div>
+    <div class="steps">
+      <div class="card step reveal"><h3>สร้างข้อสอบ</h3><p class="muted" style="margin:0">พิมพ์เอง ให้ AI ช่วยออก หรือคัดลอกจากคลัง ได้ข้อสอบ 10 รูปแบบ</p></div>
+      <div class="card step reveal"><h3>แชร์ลิงก์ / QR</h3><p class="muted" style="margin:0">ผู้เรียนสแกนแล้วทำได้เลย ไม่ต้องสมัคร ตั้งเวลาและสุ่มข้อได้</p></div>
+      <div class="card step reveal"><h3>ดูผล & ตรวจ</h3><p class="muted" style="margin:0">คะแนนออกทันที AI ช่วยตรวจข้อเขียน แล้วส่งออก Excel ได้</p></div>
+    </div>
+  </div>
+</section>
+
+<% if (featured.length) { %>
+<section class="section" style="padding-top:10px">
+  <div class="container">
+    <div class="row between mb"><h2 style="margin:0">🔥 ชุดข้อสอบยอดนิยม</h2><a href="/library">ดูทั้งหมด →</a></div>
+    <div class="grid">
+      <% featured.forEach(e => { %>
+        <a class="card card-link reveal" href="/library/<%= e.id %>">
+          <% if (e.category) { %><span class="badge brand"><%= e.category %></span><% } %>
+          <h3 style="margin-top:10px"><%= e.title %></h3>
+          <div class="muted small"><%= e.qn %> ข้อ · โดย <%= e.owner_name %> · คัดลอก <%= e.copy_count %> ครั้ง</div>
+        </a>
+      <% }) %>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-panel reveal">
+      <h2>โครงการเพื่อสังคม ❤️ การศึกษาไทย</h2>
+      <p>ใช้ฟรี ได้พื้นที่คนละ <%= site.default_quota_mb %>MB (ต้องการเพิ่ม ติดต่อ LINE OA <b><%= site.contact_line %></b>) และมีโค้ดโอเพนซอร์สให้โรงเรียน/องค์กรนำไปติดตั้งบนเซิร์ฟเวอร์ของตัวเองได้</p>
+      <div class="row center-x">
+        <% if (!user) { %><a class="btn xl" style="background:#fff;color:#4f46e5!important;border:0" href="/register">สมัครใช้งานฟรี →</a><% } %>
+        <% if (site.donate_url) { %><a class="btn xl donate" href="<%= site.donate_url %>" target="_blank" rel="noopener"><%= site.donate_text %></a><% } %>
+        <% if (site.github_url) { %><a class="btn xl glass" href="<%= site.github_url %>" target="_blank" rel="noopener">⭐ GitHub</a><% } %>
+      </div>
+    </div>
+  </div>
+</section>
+<script>
+(function(){
+  const lines = ['สร้างข้อสอบเรื่อง "ระบบสุริยะ" 5 ข้อ...', 'ดาวเคราะห์ดวงใดใหญ่ที่สุด?', 'จับคู่ดาวเคราะห์กับลักษณะเด่น...'];
+  const el = document.getElementById('heroType'); let li = 0, ci = 0;
+  if (el) setInterval(() => { const L = lines[li]; ci++; el.textContent = L.slice(0, ci); if (ci > L.length + 18) { ci = 0; li = (li + 1) % lines.length; } }, 70);
+  const demo = document.getElementById('aiDemo'); if (!demo) return;
+  const script = [['k','> หัวข้อ: '],['','การสังเคราะห์ด้วยแสง · 3 ข้อ · ม.2\n\n'],['g','✓ '],['','ข้อ 1  พืชใช้แก๊สใดในการสังเคราะห์ด้วยแสง?\n    A. O₂   B. CO₂ ✓   C. N₂   D. H₂\n\n'],['g','✓ '],['','ข้อ 2  คลอโรฟิลล์อยู่ใน {{คลอโรพลาสต์}}\n\n'],['g','✓ '],['','ข้อ 3  อธิบายความสำคัญของแสงต่อพืช\n    เกณฑ์: อธิบายได้ถูกต้อง 3 คะแนน ...\n\n'],['k','⚡ เสร็จใน 24 วินาที — กด "เพิ่มลงแบบทดสอบ"']];
+  let i = 0, j = 0, started = false;
+  function type() {
+    if (i >= script.length) { setTimeout(() => { demo.innerHTML = ''; i = 0; j = 0; type(); }, 3500); return; }
+    const [cls, txt] = script[i];
+    let span = demo.lastChild && demo.lastChild.dataset && demo.lastChild.dataset.i == i ? demo.lastChild : null;
+    if (!span) { span = document.createElement('span'); span.dataset.i = i; if (cls) span.className = cls; demo.appendChild(span); }
+    span.textContent += txt[j++];
+    if (j >= txt.length) { i++; j = 0; }
+    setTimeout(type, 22);
+  }
+  new IntersectionObserver((e, o) => { if (e[0].isIntersecting && !started) { started = true; type(); o.disconnect(); } }).observe(demo);
+})();
+</script>
+<%- include('partials/foot') %>

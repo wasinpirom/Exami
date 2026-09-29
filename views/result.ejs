@@ -1,0 +1,63 @@
+<%- include('partials/head') %>
+<div class="container page narrow">
+  <div class="card glow" style="text-align:center;padding:34px 22px">
+    <div class="muted"><%= exam.title %></div>
+    <h2 style="margin:4px 0 6px"><%= attempt.taker_name %><%= attempt.taker_ident ? ' (' + attempt.taker_ident + ')' : '' %></h2>
+    <% if (showScore) { const C = 2*Math.PI*84; %>
+      <div class="ring">
+        <svg viewBox="0 0 190 190"><defs><linearGradient id="rg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#6d5dfc"/><stop offset=".6" stop-color="#a855f7"/><stop offset="1" stop-color="#ec4899"/></linearGradient></defs>
+          <circle class="track" cx="95" cy="95" r="84" fill="none" stroke-width="14"/>
+          <circle class="val" id="ringVal" cx="95" cy="95" r="84" fill="none" stroke="url(#rg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="<%= C %>" stroke-dashoffset="<%= C %>" data-target="<%= C * (1 - pct/100) %>"/></svg>
+        <div class="ring-label"><b><span data-count="<%= pct %>">0</span>%</b><span class="muted"><%= attempt.score %> / <%= attempt.max_score %> คะแนน</span></div>
+      </div>
+      <div class="mt"><span class="badge <%= attempt.pending_count ? 'warn' : passed ? 'ok' : 'bad' %>" style="font-size:.95rem;padding:6px 16px">
+        <%= attempt.pending_count ? '⏳ คะแนนเบื้องต้น — รอตรวจอีก ' + attempt.pending_count + ' ข้อ' : (passed ? '🎉 ยินดีด้วย! สอบผ่าน' : '💪 ยังไม่ผ่านเกณฑ์ ' + exam.settings.pass_percent + '% — สู้ต่อนะ!') %></span></div>
+      <% if (aiRunning) { %><div class="alert info mt small">🤖 AI กำลังตรวจข้อเขียนของคุณ — รีเฟรชหน้านี้ในอีกสักครู่เพื่อดูคะแนน</div><% } %>
+      <% if (certificate) { %><a class="btn primary lg mt" href="/r/<%= attempt.token %>/certificate" target="_blank">🎓 ดาวน์โหลดเกียรติบัตร</a><% } %>
+    <% } else { %>
+      <div style="font-size:3rem">✅</div><h3>ส่งคำตอบเรียบร้อยแล้ว</h3><p class="muted">ผู้สอนจะประกาศผลภายหลัง</p>
+    <% } %>
+    <div class="small muted mt">ส่งเมื่อ <%= fmtDate(attempt.submitted_at) %></div>
+    <div class="copybox mt" style="max-width:500px;margin-left:auto;margin-right:auto">
+      <input type="text" readonly value="<%= baseUrl %>/r/<%= attempt.token %>"><button class="btn sm" onclick="copyText('<%= baseUrl %>/r/<%= attempt.token %>')">คัดลอกลิงก์ผลสอบ</button></div>
+    <div class="tiny muted" style="margin-top:6px">เก็บลิงก์นี้ไว้เพื่อกลับมาดูผล (เช่น หลังผู้สอนตรวจข้อเขียนแล้ว)</div>
+  </div>
+
+  <% if (leaderboard && leaderboard.length) { %>
+  <div class="card mt">
+    <h3>🏆 Leaderboard — 10 อันดับแรก</h3>
+    <div><% leaderboard.forEach((l, i) => { %>
+      <div class="lb-row <%= l.me ? 'me' : '' %>"><span class="lb-rank"><%= i+1 %></span><b class="grow"><%= l.taker_name %><%= l.me ? ' (คุณ)' : '' %></b><span><b><%= l.score %></b> <span class="muted">/ <%= l.max_score %></span></span></div>
+    <% }) %></div>
+  </div>
+  <% } %>
+  <% if (showScore) { %>
+  <script>
+    addEventListener('load', () => {
+      const r = document.getElementById('ringVal'); if (r) setTimeout(() => r.style.strokeDashoffset = r.dataset.target, 150);
+      <% if (passed) { %>setTimeout(() => confetti(), 500);<% } %>
+    });
+  </script>
+  <% } %>
+
+  <% if (showScore) { %>
+  <h3 class="mt2">รายละเอียดรายข้อ</h3>
+  <% items.forEach((it, i) => { %>
+    <div class="card q-card pad-sm">
+      <div class="q-head"><span class="q-num">ข้อ <%= i+1 %></span>
+        <span><% if (it.status==='pending') { %><span class="badge warn">รอตรวจ</span><% } else { %>
+          <span class="badge <%= it.score >= it.q.points ? 'ok' : it.score > 0 ? 'warn' : 'bad' %>"><%= it.score %> / <%= it.q.points %></span><% } %>
+          <% if (it.aiGraded) { %><span class="badge brand">🤖 ตรวจโดย AI</span><% } %></span></div>
+      <div class="q-prompt"><%= it.q.prompt %></div>
+      <% if (it.q.type === 'fillblank') { %><div class="small muted pre"><%= JSON.parse(it.q.data).text.replace(/\{\{.*?\}\}/g, '_____') %></div><% } %>
+      <div class="small"><b>คำตอบของคุณ:</b> <span class="pre"><%= it.response || '— ไม่ได้ตอบ —' %></span>
+        <% if (it.q.type==='file' && it.resp && it.resp.file_id) { %> <a href="/files/<%= it.resp.file_id %>?t=<%= attempt.token %>" target="_blank">เปิดไฟล์</a><% } %></div>
+      <% if (showAnswers && it.correct) { %><div class="small" style="color:var(--ok)"><b>เฉลย:</b> <span class="pre"><%= it.correct %></span></div><% } %>
+      <% if (showAnswers && it.explanation) { %><div class="small muted pre">💡 <%= it.explanation %></div><% } %>
+      <% if (it.feedback) { %><div class="alert info small mt pre" style="margin-bottom:0">💬 <%= it.feedback %></div><% } %>
+    </div>
+  <% }) %>
+  <% } %>
+  <div class="row mt" style="justify-content:center"><a class="btn" href="/t/<%= exam.share_token %>">กลับหน้าแบบทดสอบ</a><% if (user) { %><a class="btn" href="/my-results">ผลสอบทั้งหมดของฉัน</a><% } %></div>
+</div>
+<%- include('partials/foot') %>

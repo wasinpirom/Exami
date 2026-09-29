@@ -1,0 +1,38 @@
+<%- include('partials/head', { noAds: true }) %>
+<div class="container page">
+  <div class="page-head"><div><h1>🎓 <%= course.title %></h1>
+    <div class="row small"><a href="/c/<%= course.share_token %>" target="_blank">หน้าคอร์ส ↗</a>
+      <button class="btn sm" onclick="copyText('<%= baseUrl %>/c/<%= course.share_token %>')">🔗 คัดลอกลิงก์คอร์ส</button></div></div>
+    <div class="row"><a class="btn" href="/courses/<%= course.id %>/students">👥 ผู้เรียน</a><a class="btn" href="/courses/<%= course.id %>/progress">📈 ความก้าวหน้า</a></div></div>
+  <% if (saved) { %><div class="alert ok">บันทึกแล้ว</div><% } %>
+  <div class="grid-2">
+    <div class="card">
+      <h3>บทเรียน</h3>
+      <% if (!lessons.length) { %><p class="muted small">ยังไม่มีบทเรียน</p><% } %>
+      <% lessons.forEach((l, i) => { %>
+        <div class="row" style="padding:6px 0;border-bottom:1px solid var(--line);gap:6px;flex-wrap:nowrap">
+          <b style="width:26px"><%= i+1 %>.</b>
+          <a class="grow" href="/courses/<%= course.id %>/lessons/<%= l.id %>/edit"><%= l.title %></a>
+          <span class="tiny muted"><%= l.video_url ? '🎬' : '' %><%= l.exam_id ? '📝' : '' %><%= l.is_preview ? '👁' : '' %></span>
+          <form method="post" action="/courses/<%= course.id %>/lessons/<%= l.id %>/move" class="inline"><input type="hidden" name="dir" value="up"><button class="btn sm ghost" <%= i===0?'disabled':'' %>>↑</button></form>
+          <form method="post" action="/courses/<%= course.id %>/lessons/<%= l.id %>/move" class="inline"><input type="hidden" name="dir" value="down"><button class="btn sm ghost" <%= i===lessons.length-1?'disabled':'' %>>↓</button></form>
+        </div>
+      <% }) %>
+      <form method="post" action="/courses/<%= course.id %>/lessons" class="row mt"><input type="text" name="title" placeholder="ชื่อบทเรียนใหม่" class="grow"><button class="btn primary">+ เพิ่มบทเรียน</button></form>
+    </div>
+    <div class="card">
+      <h3>ตั้งค่าคอร์ส</h3>
+      <form method="post" action="/courses/<%= course.id %>">
+        <div class="field"><label>ชื่อคอร์ส</label><input type="text" name="title" value="<%= course.title %>" required></div>
+        <div class="field"><label>คำอธิบาย <span class="hint">(Markdown)</span></label><textarea name="description" rows="5"><%= course.description %></textarea></div>
+        <div class="field"><label>ลิงก์รูปปก <span class="hint">(URL รูปที่ฝากไว้ที่อื่น)</span></label><input type="url" name="cover_url" value="<%= course.cover_url %>" placeholder="https://..."></div>
+        <label class="check"><input type="checkbox" name="require_approval" value="1" <%= course.require_approval ? 'checked' : '' %>> ผู้เรียนที่ขอเข้าเรียนต้องรอผู้สอนอนุมัติ</label>
+        <label class="check"><input type="checkbox" name="is_listed" value="1" <%= course.is_listed ? 'checked' : '' %>> แสดงในหน้ารวมคอร์ส (ให้คนทั่วไปค้นเจอ)</label>
+        <button class="btn primary mt">บันทึก</button>
+      </form>
+      <form method="post" action="/courses/<%= course.id %>/delete" onsubmit="return confirm('ลบคอร์สนี้ถาวร? (บทเรียนและความก้าวหน้าผู้เรียนจะหายทั้งหมด)')" class="mt"><button class="btn sm danger">ลบคอร์ส</button></form>
+    </div>
+  </div>
+  <div class="alert info small mt">💡 ระบบไม่เก็บไฟล์ในคอร์ส — วิดีโอให้ใช้ลิงก์ YouTube / Vimeo / Google Drive และเอกสาร (PDF, สไลด์) ให้ฝากไว้ที่อื่นแล้วแนบลิงก์ในบทเรียน</div>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

@@ -1,0 +1,20 @@
+<%- include('partials/head', { noAds: true }) %>
+<div class="auth-wrap">
+  <%- include('partials/auth_art') %>
+  <div class="auth-form">
+    <div style="width:100%;max-width:400px">
+      <h1>ยินดีต้อนรับกลับ 👋</h1>
+      <p class="muted">เข้าสู่ระบบเพื่อจัดการข้อสอบและคอร์สของคุณ</p>
+      <% if (error) { %><div class="alert bad"><%= error %></div><% } %>
+      <form method="post" action="/login" class="mt">
+        <input type="hidden" name="next" value="<%= next %>">
+        <div class="field"><label>อีเมล</label><input type="email" name="email" value="<%= email %>" required autofocus placeholder="you@example.com"></div>
+        <div class="field"><label>รหัสผ่าน</label><input type="password" name="password" required placeholder="••••••••"></div>
+        <button class="btn primary lg" style="width:100%">เข้าสู่ระบบ</button>
+      </form>
+      <p class="small muted mt">ยังไม่มีบัญชี? <a href="/register<%= next ? '?next='+encodeURIComponent(next) : '' %>">สมัครฟรี</a><br>ลืมรหัสผ่าน? ติดต่อผู้ดูแลระบบ (LINE OA <%= site.contact_line %>)</p>
+    </div>
+  </div>
+</div>
+<script>initUI()</script>
+</body></html>

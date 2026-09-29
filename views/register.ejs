@@ -1,0 +1,21 @@
+<%- include('partials/head', { noAds: true }) %>
+<div class="auth-wrap">
+  <%- include('partials/auth_art') %>
+  <div class="auth-form">
+    <div style="width:100%;max-width:400px">
+      <h1>สร้างบัญชีฟรี 🚀</h1>
+      <p class="muted">ใช้เวลาไม่ถึง 30 วินาที ไม่ต้องใช้บัตรเครดิต</p>
+      <% if (error) { %><div class="alert bad"><%= error %></div><% } %>
+      <form method="post" action="/register" class="mt">
+        <input type="hidden" name="next" value="<%= next %>">
+        <div class="field"><label>ชื่อ-นามสกุล</label><input type="text" name="name" value="<%= form.name||'' %>" required autofocus></div>
+        <div class="field"><label>อีเมล</label><input type="email" name="email" value="<%= form.email||'' %>" required placeholder="you@example.com"></div>
+        <div class="field"><label>รหัสผ่าน <span class="hint">(อย่างน้อย 6 ตัวอักษร)</span></label><input type="password" name="password" minlength="6" required></div>
+        <button class="btn primary lg" style="width:100%">สมัครสมาชิก</button>
+      </form>
+      <p class="small muted mt">มีบัญชีแล้ว? <a href="/login">เข้าสู่ระบบ</a></p>
+    </div>
+  </div>
+</div>
+<script>initUI()</script>
+</body></html>

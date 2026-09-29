@@ -1,0 +1,16 @@
+<%- include('partials/head') %>
+<div class="container page">
+  <div class="page-head"><div><h1>🎓 คอร์สเรียน</h1><p class="muted">คอร์สที่ผู้สอนเปิดให้ค้นหาได้ — คอร์สอื่นๆ เข้าผ่านลิงก์ที่ผู้สอนแชร์</p></div>
+    <% if (user) { %><form method="post" action="/courses/new"><button class="btn primary">+ สร้างคอร์สของฉัน</button></form><% } %></div>
+  <% if (!courses.length) { %><div class="card muted">ยังไม่มีคอร์สที่เปิดสาธารณะ</div><% } %>
+  <div class="grid">
+    <% courses.forEach(c => { %>
+    <a class="card card-link" href="/c/<%= c.share_token %>" style="padding:0;overflow:hidden">
+      <% if (c.cover_url) { %><img src="<%= c.cover_url %>" alt="" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block"><% } else { %><div class="cover">🎓</div><% } %>
+      <div style="padding:14px"><h3 style="margin:0 0 6px"><%= c.title %></h3>
+        <div class="tiny muted"><%= c.ln %> บทเรียน · ผู้เรียน <%= c.students %> คน · โดย <%= c.owner_name %><%= c.require_approval ? '' : ' · เข้าเรียนได้ทันที' %></div></div>
+    </a>
+    <% }) %>
+  </div>
+</div>
+<%- include('partials/foot') %>

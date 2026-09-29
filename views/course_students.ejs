@@ -1,0 +1,42 @@
+<%- include('partials/head', { noAds: true }) %>
+<div class="container page">
+  <a href="/courses/<%= course.id %>/edit" class="small">← <%= course.title %></a>
+  <h1 class="mt">👥 ผู้เรียน</h1>
+  <% if (msg) { %><div class="alert ok"><%= msg %></div><% } %>
+  <div class="grid-2">
+    <div class="card">
+      <h3>เพิ่มผู้เรียนด้วยอีเมล</h3>
+      <form method="post" action="/courses/<%= course.id %>/students">
+        <textarea name="emails" rows="5" placeholder="student1@email.com&#10;student2@email.com&#10;(วางได้หลายอีเมล คั่นด้วยบรรทัดใหม่ , หรือเว้นวรรค)"></textarea>
+        <button class="btn primary mt">เพิ่มผู้เรียน</button>
+      </form>
+      <p class="tiny muted">ผู้ที่ยังไม่มีบัญชี จะเข้าคอร์สอัตโนมัติเมื่อสมัครด้วยอีเมลนี้</p>
+    </div>
+    <div class="card">
+      <h3>ให้ผู้เรียนขอเข้าเรียนเอง</h3>
+      <div class="copybox"><input type="text" readonly value="<%= baseUrl %>/c/<%= course.share_token %>"><button class="btn" onclick="copyText('<%= baseUrl %>/c/<%= course.share_token %>')">คัดลอก</button></div>
+      <p class="small muted"><%= course.require_approval ? 'ตอนนี้: ต้องรออนุมัติ — คำขอจะแสดงด้านล่าง' : 'ตอนนี้: ลงทะเบียนแล้วเข้าเรียนได้ทันที (ไม่ต้องอนุมัติ)' %> · <a href="/courses/<%= course.id %>/edit">เปลี่ยน</a></p>
+    </div>
+  </div>
+  <% const pending = rows.filter(r => r.status==='pending' && r.user_id); if (pending.length) { %>
+  <div class="row between mt2"><h3>📨 คำขอเข้าเรียน (<%= pending.length %>)</h3>
+    <form method="post" action="/courses/<%= course.id %>/enrollments/0/approve-all"><button class="btn ok sm">อนุมัติทั้งหมด</button></form></div>
+  <div class="table-wrap"><table>
+    <% pending.forEach(r => { %><tr><td><b><%= r.name %></b><div class="tiny muted"><%= r.email %></div></td><td class="small"><%= fmtDate(r.created_at) %></td>
+      <td class="row" style="justify-content:flex-end">
+        <form method="post" action="/courses/<%= course.id %>/enrollments/<%= r.id %>/approve"><button class="btn sm ok">อนุมัติ</button></form>
+        <form method="post" action="/courses/<%= course.id %>/enrollments/<%= r.id %>/reject"><button class="btn sm danger">ปฏิเสธ</button></form></td></tr><% }) %>
+  </table></div>
+  <% } %>
+  <h3 class="mt2">รายชื่อผู้เรียน</h3>
+  <div class="table-wrap"><table>
+    <tr><th>ชื่อ</th><th>อีเมล</th><th>สถานะ</th><th></th></tr>
+    <% const others = rows.filter(r => !(r.status==='pending' && r.user_id)); if (!others.length) { %><tr><td colspan="4" class="muted center">ยังไม่มีผู้เรียน</td></tr><% } %>
+    <% others.forEach(r => { %><tr><td><%= r.name || '—' %></td><td><%= r.email || r.invited_email %></td>
+      <td><%- !r.user_id ? '<span class="badge brand">เชิญแล้ว (ยังไม่สมัคร)</span>' : r.status==='approved' ? '<span class="badge ok">กำลังเรียน</span>' : '<span class="badge bad">ถูกปฏิเสธ</span>' %></td>
+      <td class="row" style="justify-content:flex-end">
+        <% if (r.status==='rejected') { %><form method="post" action="/courses/<%= course.id %>/enrollments/<%= r.id %>/approve"><button class="btn sm">อนุมัติ</button></form><% } %>
+        <form method="post" action="/courses/<%= course.id %>/enrollments/<%= r.id %>/remove" onsubmit="return confirm('นำออกจากคอร์ส?')"><button class="btn sm ghost">นำออก</button></form></td></tr><% }) %>
+  </table></div>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

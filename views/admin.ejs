@@ -1,0 +1,33 @@
+<%- include('partials/head', { noAds: true }) %>
+<div class="container page">
+  <div class="page-head"><h1>🛠 ผู้ดูแลระบบ</h1><div class="row"><a class="btn primary" href="/admin/ai">🤖 จัดการโมเดล AI<% if (aiNotices) { %> <span class="badge" style="background:#fff;color:var(--brand)"><%= aiNotices %></span><% } %></a><a class="btn" href="/admin/settings">⚙ ตั้งค่าเว็บไซต์ / โฆษณา / บริจาค</a></div></div>
+  <% if (aiNotices) { %><div class="alert info">🔔 มีการแจ้งเตือนเรื่องโมเดล AI (มีเวอร์ชันใหม่ หรือมีโมเดลแนะนำที่น่าสนใจ) — <a href="/admin/ai">ดูรายละเอียด</a></div><% } %>
+  <% if (msg) { %><div class="alert ok"><%= msg %></div><% } %>
+  <div class="stats mb">
+    <div class="stat"><b><%= totals.users %></b><span>ผู้ใช้</span></div>
+    <div class="stat"><b><%= totals.exams %></b><span>แบบทดสอบ</span></div>
+    <div class="stat"><b><%= totals.attempts %></b><span>การสอบ</span></div>
+    <div class="stat"><b><%= totals.courses %></b><span>คอร์ส</span></div>
+    <div class="stat"><b><%= fmtBytes(totals.storage) %></b><span>พื้นที่ไฟล์รวม</span></div>
+    <div class="stat"><b><%= totals.jobs %></b><span>งาน AI ในคิว</span></div>
+  </div>
+  <div class="card pad-sm mb"><b>🤖 สถานะ AI:</b> <span class="badge <%= aiStatus.ok ? 'ok' : 'bad' %>"><%= aiStatus.message %></span>
+    <a class="btn sm" href="/admin/ai" style="margin-left:8px">จัดการ</a> <span class="small muted">โมเดล: <%= aiStatus.model %><%= aiStatus.models && aiStatus.models.length ? ' · มีในเซิร์ฟเวอร์: ' + aiStatus.models.join(', ') : '' %></span></div>
+  <form class="row mb" method="get"><input type="search" name="q" value="<%= q %>" placeholder="ค้นหาชื่อ/อีเมล" style="max-width:320px"><button class="btn">ค้นหา</button></form>
+  <div class="table-wrap"><table>
+    <tr><th>ผู้ใช้</th><th>บทบาท</th><th>ใช้พื้นที่</th><th>โควตา (MB)</th><th class="center">ข้อสอบ/คอร์ส</th><th>จัดการ</th></tr>
+    <% users.forEach(u => { const quota = (u.quota_mb ?? def); const pct = Math.min(100, Math.round(u.used/(quota*1048576||1)*100)); %>
+    <tr><td><b><%= u.name %></b> <%- u.disabled ? '<span class="badge bad">ระงับ</span>' : '' %><div class="tiny muted"><%= u.email %> · สมัคร <%= fmtDate(u.created_at) %></div></td>
+      <td><form method="post" action="/admin/users/<%= u.id %>" class="inline"><select name="role" onchange="this.form.submit()" style="width:auto;padding:4px"><option value="user" <%= u.role==='user'?'selected':'' %>>user</option><option value="admin" <%= u.role==='admin'?'selected':'' %>>admin</option></select></form></td>
+      <td style="min-width:140px"><div class="bar <%= pct>90?'bad':'' %>"><i style="width:<%= pct %>%"></i></div><div class="tiny"><%= fmtBytes(u.used) %></div></td>
+      <td><form method="post" action="/admin/users/<%= u.id %>" class="row" style="flex-wrap:nowrap;gap:4px"><input type="number" name="quota_mb" value="<%= u.quota_mb ?? '' %>" placeholder="<%= def %> (ค่าเริ่มต้น)" style="width:120px;padding:5px"><button class="btn sm">บันทึก</button></form></td>
+      <td class="center"><%= u.exams %> / <%= u.courses %></td>
+      <td class="row" style="flex-wrap:nowrap">
+        <form method="post" action="/admin/users/<%= u.id %>" class="inline"><input type="hidden" name="toggle_disabled" value="1"><button class="btn sm"><%= u.disabled ? 'ปลดระงับ' : 'ระงับ' %></button></form>
+        <form method="post" action="/admin/users/<%= u.id %>" class="inline" onsubmit="const p=prompt('รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)');if(!p)return false;this.new_password.value=p"><input type="hidden" name="new_password"><button class="btn sm">รีเซ็ตรหัส</button></form>
+        <form method="post" action="/admin/users/<%= u.id %>/delete" class="inline" onsubmit="return confirm('ลบผู้ใช้และข้อมูลทั้งหมดของผู้ใช้นี้ถาวร?')"><button class="btn sm danger">ลบ</button></form>
+      </td></tr>
+    <% }) %>
+  </table></div>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

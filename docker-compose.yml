@@ -1,0 +1,12 @@
+# สำหรับติดตั้งบน VPS ทั่วไปที่มี Docker (ไม่ใช้ Coolify): docker compose up -d --build → เปิด http://<IP>:3000
+# ทุกอย่าง (เว็บ + AI) อยู่ในคอนเทนเนอร์เดียว ตั้งค่าอื่นๆ ได้ในหน้า ผู้ดูแล → ตั้งค่าเว็บไซต์
+services:
+  exami:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${EXAMI_PORT:-3000}:3000"   # พอร์ต 3000 ของเครื่องถูกใช้แล้ว? ตั้ง EXAMI_PORT=3100 ใน .env
+    volumes:
+      - exami-data:/data
+volumes:
+  exami-data:

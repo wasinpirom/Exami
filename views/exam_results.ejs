@@ -1,0 +1,70 @@
+<%- include('partials/head', { noAds: true }) %>
+<div class="container page">
+  <div class="page-head">
+    <div><h1>📊 <%= exam.title %></h1>
+      <div class="row small"><%- exam.is_open ? '<span class="badge ok">เปิดรับคำตอบ</span>' : '<span class="badge">ปิดรับคำตอบ</span>' %>
+        <form method="post" action="/exams/<%= exam.id %>/toggle" class="inline"><button class="btn sm"><%= exam.is_open ? 'ปิดรับคำตอบ' : 'เปิดรับคำตอบ' %></button></form>
+        <button class="btn sm" onclick="copyText('<%= baseUrl %>/t/<%= exam.share_token %>')">🔗 คัดลอกลิงก์สอบ</button></div></div>
+    <div class="row">
+      <a class="btn" href="/exams/<%= exam.id %>/edit">✏ แก้ไขข้อสอบ</a>
+      <a class="btn" href="/exams/<%= exam.id %>/live">📡 ติดตามสด</a>
+      <a class="btn" href="/exams/<%= exam.id %>/print" target="_blank">🖨 พิมพ์</a>
+      <a class="btn" href="/exams/<%= exam.id %>/results.csv">⬇ ส่งออก CSV (Excel)</a>
+      <form method="post" action="/exams/<%= exam.id %>/regrade" onsubmit="return confirm('ตรวจข้อปรนัยใหม่ทั้งหมดตามเฉลยปัจจุบัน? (คะแนนที่คุณให้เองจะไม่ถูกเปลี่ยน)')"><button class="btn">🔄 ตรวจใหม่ตามเฉลย</button></form>
+      <% if (aiEnabled && stats.pending) { %><button class="btn ai" id="aiAll" onclick="aiGradeAll()">🤖 ให้ AI ตรวจข้อที่รอตรวจทั้งหมด (<%= stats.pending %> คน)</button><% } %>
+    </div>
+  </div>
+  <div id="aiStatus" class="alert info small hidden"></div>
+  <% if (typeof lastJob !== 'undefined' && lastJob && ['queued','running'].includes(lastJob.status)) { %><div class="alert info small">🤖 AI กำลังตรวจอยู่... รีเฟรชหน้านี้ภายหลัง</div><% } %>
+
+  <div class="stats mb">
+    <div class="stat"><b><%= stats.submitted %></b><span>ส่งแล้ว</span></div>
+    <div class="stat"><b><%= stats.inProgress %></b><span>กำลังทำ</span></div>
+    <div class="stat"><b><%= stats.pending %></b><span>รอตรวจ</span></div>
+    <div class="stat"><b><%= stats.avg %></b><span>เฉลี่ย (เต็ม <%= questions.reduce((s,q)=>s+q.points,0) %>)</span></div>
+    <div class="stat"><b><%= stats.max %> / <%= stats.min %></b><span>สูงสุด / ต่ำสุด</span></div>
+    <div class="stat"><b><%= stats.passed %></b><span>ผ่านเกณฑ์ <%= exam.settings.pass_percent %>%</span></div>
+  </div>
+
+  <div class="grid-2 mb">
+    <div class="card"><h3>การกระจายคะแนน (%)</h3>
+      <% const mx = Math.max(1, ...stats.buckets); %>
+      <div class="hist"><% stats.buckets.forEach(b => { %><div title="<%= b %> คน"><i style="height:<%= b/mx*100 %>%"></i></div><% }) %></div>
+      <div class="hist-l"><% for (let i=0;i<10;i++) { %><span><%= i*10 %></span><% } %></div>
+    </div>
+    <div class="card"><h3>วิเคราะห์รายข้อ</h3>
+      <div style="max-height:220px;overflow:auto">
+      <% perQ.forEach((p, i) => { const pc = p.n && p.q.points ? Math.round(p.sum/(p.n*p.q.points)*100) : 0; %>
+        <div class="row small" style="gap:8px;margin-bottom:6px"><b style="width:44px">ข้อ <%= i+1 %></b>
+          <div class="bar grow <%= pc<40?'bad':pc<70?'warn':'' %>"><i style="width:<%= pc %>%"></i></div><span style="width:120px" class="muted"><%= pc %>% · <%= TYPES[p.q.type].label.split(' ')[0] %></span></div>
+      <% }) %></div>
+    </div>
+  </div>
+
+  <div class="table-wrap"><table>
+    <tr><th>ชื่อ</th><th><%= exam.settings.ident_label %></th><th>ส่งเมื่อ</th><th class="num">คะแนน</th><th>สถานะ</th><th class="center" title="จำนวนครั้งที่สลับแท็บ/ออกจากหน้าจอ">สลับแท็บ</th><th></th></tr>
+    <% if (!attempts.length) { %><tr><td colspan="7" class="muted center">ยังไม่มีผู้ทำแบบทดสอบ — แชร์ลิงก์ให้ผู้เรียนได้เลย</td></tr><% } %>
+    <% attempts.forEach(a => { %>
+    <tr><td><b><%= a.taker_name %></b><% if (a.user_id) { %> <span class="tiny muted">👤</span><% } %></td><td><%= a.taker_ident %></td>
+      <td class="small"><%= a.submitted_at ? fmtDate(a.submitted_at) : '-' %></td>
+      <td class="num"><b><%= a.score %></b> / <%= a.max_score %></td>
+      <td><%- a.status!=='submitted' ? '<span class="badge brand">กำลังทำ</span>' : a.pending_count ? `<span class="badge warn">รอตรวจ ${a.pending_count} ข้อ</span>` : '<span class="badge ok">ตรวจแล้ว</span>' %></td>
+      <td class="center"><%- a.tab_switches ? `<span class="badge ${a.tab_switches>3?'bad':'warn'}">${a.tab_switches}</span>` : '0' %></td>
+      <td class="row" style="flex-wrap:nowrap;justify-content:flex-end">
+        <% if (a.status==='submitted') { %><a class="btn sm primary" href="/exams/<%= exam.id %>/attempts/<%= a.id %>">ตรวจ/ดู</a><% } %>
+        <form method="post" action="/exams/<%= exam.id %>/attempts/<%= a.id %>/delete" onsubmit="return confirm('ลบผลสอบของ <%= a.taker_name.replace(/['"\\]/g,'') %>?')"><button class="btn sm ghost" title="ลบ">🗑</button></form></td></tr>
+    <% }) %>
+  </table></div>
+</div>
+<script>
+async function aiGradeAll() {
+  const b = document.getElementById('aiAll'), s = document.getElementById('aiStatus');
+  b.disabled = true; s.classList.remove('hidden'); s.textContent = '🤖 ส่งงานให้ AI แล้ว กำลังตรวจ... (ใช้เวลาตามจำนวนข้อเขียน)';
+  try {
+    const { job_id } = await api('/api/exams/<%= exam.id %>/ai-grade', { body: {} });
+    const r = await waitJob(job_id, j => { s.textContent = j.status === 'queued' ? '⏳ รอคิว AI...' : '🤖 AI กำลังตรวจ...'; });
+    s.textContent = `✅ AI ตรวจเสร็จ ${r.graded} คำตอบ — กำลังโหลดใหม่`; setTimeout(() => location.reload(), 1200);
+  } catch (e) { s.className = 'alert bad small'; s.textContent = e.message; b.disabled = false; }
+}
+</script>
+<%- include('partials/foot', { noAds: true }) %>

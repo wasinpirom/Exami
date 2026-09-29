@@ -1,0 +1,97 @@
+<%- include('partials/head') %>
+<div class="container page">
+  <div class="learn">
+    <aside>
+      <div class="card pad-sm">
+        <a href="/c/<%= course.share_token %>" class="small muted">← หน้าคอร์ส</a>
+        <h3 style="margin:6px 0"><%= course.title %></h3>
+        <% if (user && allowed) { const done = lessons.filter(l => (progress[l.id]||{}).completed_at).length; const pct = lessons.length ? Math.round(done/lessons.length*100) : 0; %>
+          <div class="bar"><i id="pbar" style="width:<%= pct %>%"></i></div><div class="tiny muted mb" id="ptext">เรียนจบ <%= done %>/<%= lessons.length %> บท</div>
+        <% } %>
+        <div class="lesson-list">
+          <% lessons.forEach((l, i) => { const p = progress[l.id]; const can = allowed || l.is_preview; %>
+            <a href="<%= can ? '/learn/' + course.id + '/' + l.id : '/c/' + course.share_token %>" class="<%= l.id===lesson.id?'cur':'' %>" <%- l.id===lesson.id ? 'id="curLesson"' : '' %>>
+              <span class="ic"><%= !can ? '🔒' : p && p.completed_at ? '✅' : p ? '◐' : '○' %></span><span class="grow"><%= i+1 %>. <%= l.title %></span></a>
+          <% }) %>
+        </div>
+      </div>
+    </aside>
+    <main>
+      <% if (isOwner) { %><div class="alert info small">คุณเป็นผู้สอน — <a href="/courses/<%= course.id %>/lessons/<%= lesson.id %>/edit">แก้ไขบทเรียนนี้</a></div><% } %>
+      <% if (!allowed) { %><div class="alert warn small">กำลังดูตัวอย่างฟรี — <a href="/c/<%= course.share_token %>">ลงทะเบียนเพื่อเรียนทั้งคอร์ส</a></div><% } %>
+      <h1><%= lesson.title %></h1>
+      <% if (embed) { %>
+        <div class="video mb">
+          <% if (ytId) { %><div id="ytplayer"></div>
+          <% } else if (embed.kind==='file') { %><video id="vfile" src="<%= embed.src %>" controls></video>
+          <% } else { %><iframe src="<%= embed.src %>" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe><% } %>
+        </div>
+      <% } %>
+      <% if (lesson.content_md) { %><div class="card prose"><%- md(lesson.content_md) %></div><% } %>
+      <% if (links.length) { %>
+        <div class="card mt"><h3>📎 เอกสารประกอบ</h3>
+          <% links.forEach(l => { %><div><a href="<%= l.url %>" target="_blank" rel="noopener noreferrer">🔗 <%= l.title || l.url %></a></div><% }) %></div>
+      <% } %>
+      <% if (exam) { %>
+        <div class="card mt row between"><div><h3 style="margin:0">📝 แบบทดสอบ: <%= exam.title %></h3>
+          <% if (examResult) { %><div class="small">คะแนนที่ดีที่สุดของคุณ: <b><%= examResult.score %></b> / <%= examResult.max_score %><%= examResult.pending_count ? ' (รอตรวจบางข้อ)' : '' %></div><% } %></div>
+          <a class="btn primary" href="/t/<%= exam.share_token %>"><%= examResult ? 'ทำอีกครั้ง / ดูผล' : 'ทำแบบทดสอบ →' %></a></div>
+      <% } %>
+      <% if (allDone) { %><div class="card glow mt row between" style="background:var(--grad-soft)"><div><h3 style="margin:0">🎉 ยินดีด้วย! คุณเรียนครบทุกบทแล้ว</h3><div class="small muted">รับเกียรติบัตรสำเร็จการเรียนหลักสูตรนี้ได้เลย</div></div><a class="btn primary" href="/learn/<%= course.id %>/certificate" target="_blank">🎓 รับเกียรติบัตร</a></div><% } %>
+      <% if (user && allowed) { const p = progress[lesson.id]; %>
+        <div class="card mt">
+          <label class="check" style="font-size:1.05rem"><input type="checkbox" id="doneBox" <%= p && p.completed_at ? 'checked' : '' %>> <b>ฉันเรียนบทนี้จบแล้ว</b></label>
+          <div class="tiny muted" id="watchInfo"><%= p && p.watch_percent ? 'ดูวิดีโอไปแล้ว ' + p.watch_percent + '%' : '' %></div>
+        </div>
+      <% } %>
+      <div class="row between mt">
+        <% if (prev) { %><a class="btn" href="/learn/<%= course.id %>/<%= prev.id %>">← <%= prev.title %></a><% } else { %><span></span><% } %>
+        <% if (next) { %><a class="btn primary" href="/learn/<%= course.id %>/<%= next.id %>"><%= next.title %> →</a><% } %>
+      </div>
+    </main>
+  </div>
+</div>
+<% if (user && allowed) { %>
+<script>
+(function(){
+  const LID = <%= lesson.id %>, TOTAL = <%= lessons.length %>;
+  const box = document.getElementById('doneBox'), info = document.getElementById('watchInfo');
+  box && box.addEventListener('change', async () => {
+    try { await api('/api/progress/' + LID, { body: { completed: box.checked } });
+      const cur = document.getElementById('curLesson'); if (cur) cur.querySelector('.ic').textContent = box.checked ? '✅' : '◐';
+      const done = document.querySelectorAll('.lesson-list .ic').length ? [...document.querySelectorAll('.lesson-list .ic')].filter(x => x.textContent.trim()==='✅').length : 0;
+      document.getElementById('pbar').style.width = Math.round(done/TOTAL*100) + '%';
+      document.getElementById('ptext').textContent = 'เรียนจบ ' + done + '/' + TOTAL + ' บท';
+      toast(box.checked ? 'บันทึกว่าเรียนจบแล้ว ✓' : 'ยกเลิกแล้ว');
+    } catch (e) { alert(e.message); box.checked = !box.checked; }
+  });
+  let maxPct = 0, lastSent = 0;
+  function report(pct) {
+    pct = Math.min(100, Math.round(pct)); if (pct <= maxPct) return; maxPct = pct;
+    if (info) info.textContent = 'ดูวิดีโอไปแล้ว ' + pct + '%';
+    if (pct - lastSent >= 10 || pct >= 95) { lastSent = pct; api('/api/progress/' + LID, { body: { watch_percent: pct } }).catch(()=>{}); }
+  }
+  <% if (ytId) { %>
+  // YouTube IFrame API: track how much of the video was actually watched
+  const watched = new Set();
+  window.onYouTubeIframeAPIReady = function () {
+    const player = new YT.Player('ytplayer', { videoId: '<%= ytId %>', playerVars: { rel: 0 }, events: {
+      onReady: () => setInterval(() => {
+        if (player.getPlayerState && player.getPlayerState() === 1) {
+          const d = player.getDuration(); if (!d) return;
+          watched.add(Math.floor(player.getCurrentTime() / 5));
+          report(watched.size * 5 / d * 100);
+        }
+      }, 1000) } });
+  };
+  const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+  <% } else if (embed && embed.kind==='file') { %>
+  const v = document.getElementById('vfile'); const seen = new Set();
+  v.addEventListener('timeupdate', () => { if (!v.duration) return; seen.add(Math.floor(v.currentTime/5)); report(seen.size*5/v.duration*100); });
+  <% } %>
+})();
+</script>
+<% } else if (ytId) { %>
+<script>window.onYouTubeIframeAPIReady=function(){new YT.Player('ytplayer',{videoId:'<%= ytId %>',playerVars:{rel:0}})};const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);</script>
+<% } %>
+<%- include('partials/foot') %>

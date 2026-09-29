@@ -1,0 +1,22 @@
+<%- include('partials/head') %>
+<div class="container page">
+  <div class="page-head"><div><h1>📚 คลังข้อสอบสาธารณะ</h1><p class="muted">ชุดข้อสอบที่ผู้ใช้แบ่งปัน — กด “คัดลอกไปใช้” เพื่อนำไปไว้ในพื้นที่ของคุณ แล้วแก้ไข/แชร์ต่อได้</p></div></div>
+  <form class="row mb" method="get">
+    <input type="search" name="q" value="<%= q %>" placeholder="ค้นหาชื่อชุดข้อสอบ..." class="grow" style="max-width:420px">
+    <select name="cat" style="width:auto"><option value="">ทุกหมวด</option>
+      <% cats.forEach(c => { %><option <%= c.category===cat?'selected':'' %>><%= c.category %></option><% }) %></select>
+    <button class="btn">ค้นหา</button>
+  </form>
+  <% if (!exams.length) { %><div class="card muted">ยังไม่มีชุดข้อสอบในคลัง</div><% } %>
+  <div class="grid">
+    <% exams.forEach(e => { %>
+    <a class="card card-link" href="/library/<%= e.id %>">
+      <% if (e.category) { %><span class="badge"><%= e.category %></span><% } %>
+      <h3 style="margin-top:6px"><%= e.title %></h3>
+      <p class="muted small" style="margin:0 0 8px"><%= (e.description||'').slice(0,120) %></p>
+      <div class="tiny muted"><%= e.qn %> ข้อ · โดย <%= e.owner_name %> · คัดลอก <%= e.copy_count %> ครั้ง</div>
+    </a>
+    <% }) %>
+  </div>
+</div>
+<%- include('partials/foot') %>

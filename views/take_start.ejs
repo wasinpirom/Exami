@@ -1,0 +1,40 @@
+<%- include('partials/head') %>
+<div class="container page narrow">
+  <div class="card">
+    <h1><%= exam.title %></h1>
+    <div class="row small muted">
+      <span>📝 <%= qCount %> ข้อ</span><span>🎯 คะแนนเต็ม <%= maxScore %></span>
+      <span>⏱ <%= exam.settings.time_limit_min ? exam.settings.time_limit_min + ' นาที' : 'ไม่จำกัดเวลา' %></span>
+      <span>🔁 <%= exam.settings.max_attempts ? 'ทำได้ ' + exam.settings.max_attempts + ' ครั้ง' : 'ทำได้ไม่จำกัด' %></span>
+    </div>
+    <% if (exam.description) { %><div class="prose mt"><%- md(exam.description) %></div><% } %>
+    <% if (isOwner) { %><div class="alert info mt small">คุณเป็นเจ้าของแบบทดสอบนี้ — ลองทำเพื่อดูตัวอย่างได้ (ผลจะแสดงในหน้าผลสอบด้วย ลบได้ภายหลัง)</div><% } %>
+    <% if (error) { %><div class="alert bad mt"><%= error %></div><% } %>
+    <% const open = attempts.find(a => a.status === 'in_progress'); %>
+    <% if (closed) { %>
+      <div class="alert warn mt"><%= closed %></div>
+    <% } else if (open) { %>
+      <a class="btn primary lg mt" href="/a/<%= open.token %>">ทำต่อจากที่ค้างไว้ →</a>
+    <% } else if (exam.settings.require_login && !user) { %>
+      <div class="alert info mt">แบบทดสอบนี้ต้องเข้าสู่ระบบก่อน</div>
+      <a class="btn primary" href="/login?next=/t/<%= exam.share_token %>">เข้าสู่ระบบ</a> <a class="btn" href="/register?next=/t/<%= exam.share_token %>">สมัครสมาชิก</a>
+    <% } else { %>
+      <form method="post" action="/t/<%= exam.share_token %>/start" class="mt">
+        <div class="field"><label>ชื่อ-นามสกุล</label><input type="text" name="name" required value="<%= user ? user.name : '' %>"></div>
+        <% if (exam.settings.collect_ident) { %><div class="field"><label><%= exam.settings.ident_label %></label><input type="text" name="ident" required></div><% } %>
+        <% if (exam.settings.access_code) { %><div class="field"><label>รหัสเข้าสอบ</label><input type="text" name="access_code" required></div><% } %>
+        <button class="btn primary lg">เริ่มทำแบบทดสอบ →</button>
+        <% if (!user) { %><p class="tiny muted mt">💡 เข้าสู่ระบบก่อนทำ จะเก็บประวัติผลสอบไว้ดูภายหลังได้ในบัญชีของคุณ</p><% } %>
+      </form>
+    <% } %>
+  </div>
+  <% const done = attempts.filter(a => a.status === 'submitted'); if (done.length) { %>
+    <h3 class="mt2">ประวัติการทำของคุณ</h3>
+    <div class="table-wrap"><table>
+      <% done.forEach(a => { %><tr><td><%= fmtDate(a.submitted_at) %></td>
+        <td class="num"><% if (exam.settings.show_score) { %><b><%= a.score %></b> / <%= a.max_score %><% } else { %>ส่งแล้ว<% } %></td>
+        <td><a class="btn sm" href="/r/<%= a.token %>">ดูผล</a></td></tr><% }) %>
+    </table></div>
+  <% } %>
+</div>
+<%- include('partials/foot') %>

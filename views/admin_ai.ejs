@@ -1,0 +1,128 @@
+<%- include('partials/head', { noAds: true }) %>
+<script defer src="/vendor/alpine.js"></script>
+<script>
+function aiAdmin() {
+  return {
+    s: null, loading: true, err: '', custom: '', testing: {}, tests: {}, checking: false, busy: {},
+    async init() { await this.load(); setInterval(() => { if (this.s && this.s.pulls.some(p => !p.done)) this.load(); }, 1500); },
+    async load() { try { this.s = await api('/api/admin/ai/state'); this.err = ''; } catch (e) { this.err = e.message; } this.loading = false; },
+    gb(b) { return (b / 1024 ** 3).toFixed(1) + ' GB'; },
+    pullOf(n) { return this.s && this.s.pulls.find(p => p.name === n || p.name === n + ':latest'); },
+    async pull(name) {
+      name = String(name || '').trim(); if (!name) return;
+      const r = this.s.recos.find(x => x.name === name);
+      if (r && r.fit === 'too_big' && !confirm(`โมเดล ${name} ต้องใช้ RAM ประมาณ ${r.ram_gb}GB แต่เซิร์ฟเวอร์มี ${this.gb(this.s.hardware.totalRam)} — อาจรันไม่ไหว ต้องการดาวน์โหลดต่อหรือไม่?`)) return;
+      try { await api('/api/admin/ai/pull', { body: { name } }); toast('เริ่มดาวน์โหลด ' + name); this.custom = ''; await this.load(); } catch (e) { alert(e.message); }
+    },
+    async use(name) {
+      if (!confirm(`เปลี่ยนไปใช้โมเดล ${name} สำหรับการสร้างและตรวจข้อสอบทั้งหมด?`)) return;
+      try { this.s = await api('/api/admin/ai/use', { body: { name } }); toast('✓ เปลี่ยนเป็น ' + name + ' แล้ว'); } catch (e) { alert(e.message); }
+    },
+    async del(name) {
+      if (!confirm(`ลบโมเดล ${name} ออกจากเซิร์ฟเวอร์? (ดาวน์โหลดใหม่ได้ภายหลัง)`)) return;
+      try { this.s = await api('/api/admin/ai/delete', { body: { name } }); toast('ลบแล้ว'); } catch (e) { alert(e.message); }
+    },
+    async test(name) {
+      this.testing[name] = 'ส่งงานทดสอบ...'; this.tests[name] = null;
+      try {
+        const { job_id } = await api('/api/admin/ai/test', { body: { name } });
+        this.tests[name] = await waitJob(job_id, j => this.testing[name] = j.status === 'queued' ? 'รอคิว...' : '🤖 กำลังให้โมเดลลองออกข้อสอบ...');
+      } catch (e) { this.tests[name] = { error: e.message }; }
+      this.testing[name] = null;
+    },
+    async check() { this.checking = true; try { this.s = await api('/api/admin/ai/check', { body: {} }); toast('ตรวจสอบเสร็จแล้ว'); } catch (e) { alert(e.message); } this.checking = false; },
+    fitLabel(f) { return { good: ['ok', '✓ RAM พอ'], tight: ['warn', '⚠ RAM พอดีๆ'], too_big: ['bad', '✕ RAM ไม่พอ'], unknown: ['', '?'] }[f]; },
+    stars(n) { return '★'.repeat(n || 0) + '☆'.repeat(5 - (n || 0)); },
+  };
+}
+</script>
+<div class="container page" x-data="aiAdmin()" x-cloak>
+  <a href="/admin" class="small">← ผู้ดูแลระบบ</a>
+  <div class="page-head mt">
+    <div><h1>🤖 จัดการโมเดล AI</h1><div class="muted">ดาวน์โหลด สลับ อัปเดต และทดสอบโมเดลโอเพนซอร์สผ่าน Ollama — ไม่ต้อง deploy ใหม่</div></div>
+    <button class="btn" @click="check()" :disabled="checking" x-text="checking ? 'กำลังตรวจ...' : '🔄 ตรวจหาอัปเดต / โมเดลใหม่'"></button>
+  </div>
+  <% if (!aiEnabled) { %><div class="alert warn">AI ถูกปิดอยู่ — เปิดได้ที่ <a href="/admin/settings">ตั้งค่าเว็บไซต์ → AI</a></div><% } %>
+  <div class="alert bad" x-show="err || (s && s.error)" x-text="'เชื่อมต่อ Ollama ไม่ได้: ' + (err || (s && s.error)) + ' — ตรวจสอบว่า service ollama ทำงานอยู่ (<%= ollama %>)'"></div>
+  <div x-show="loading" class="muted">กำลังโหลด...</div>
+
+  <template x-if="s">
+    <div>
+      <div class="stats mb">
+        <div class="stat"><span>โมเดลที่ใช้งานอยู่</span><b style="font-size:1.25rem" x-text="s.active"></b></div>
+        <div class="stat"><span>RAM เซิร์ฟเวอร์</span><b x-text="gb(s.hardware.totalRam)"></b><span x-text="'ว่าง ' + gb(s.hardware.freeRam)"></span></div>
+        <div class="stat"><span>CPU</span><b x-text="s.hardware.cpus + ' cores'"></b></div>
+        <div class="stat"><span>ตรวจล่าสุด</span><b style="font-size:1rem" x-text="s.checked_at ? new Date(s.checked_at).toLocaleString('th-TH') : 'ยังไม่เคย'"></b><span>ตรวจอัตโนมัติทุก 12 ชม.</span></div>
+      </div>
+
+      <template x-for="p in s.pulls.filter(p => !p.done || p.error)" :key="p.name">
+        <div class="card pad-sm mb">
+          <div class="row between"><b x-text="'⬇ ' + p.name"></b><span class="small muted" x-text="p.error ? '' : p.status + (p.total ? ' · ' + gb(p.completed) + ' / ' + gb(p.total) : '')"></span></div>
+          <div class="bar mt" x-show="!p.error"><i :style="'width:' + p.percent + '%'"></i></div>
+          <div class="small" style="color:var(--bad)" x-show="p.error" x-text="'❌ ' + p.error"></div>
+        </div>
+      </template>
+
+      <h2 class="mt2">💽 โมเดลในเซิร์ฟเวอร์</h2>
+      <div class="table-wrap"><table>
+        <tr><th>โมเดล</th><th>ขนาด</th><th>รายละเอียด</th><th>สถานะ</th><th></th></tr>
+        <template x-if="!s.installed.length"><tr><td colspan="5" class="muted center">ยังไม่มีโมเดล — เลือกดาวน์โหลดจากรายการแนะนำด้านล่าง</td></tr></template>
+        <template x-for="m in s.installed" :key="m.name">
+          <tr>
+            <td><b x-text="m.name"></b></td>
+            <td x-text="gb(m.size)"></td>
+            <td class="small muted" x-text="[m.family, m.params, m.quant].filter(Boolean).join(' · ')"></td>
+            <td><span class="badge ok" x-show="m.active">● ใช้งานอยู่</span> <span class="badge warn" x-show="m.hasUpdate">⬆ มีเวอร์ชันใหม่</span></td>
+            <td class="row" style="justify-content:flex-end;flex-wrap:nowrap;gap:6px">
+              <button class="btn sm primary" x-show="m.hasUpdate" @click="pull(m.name)">อัปเดต</button>
+              <button class="btn sm" @click="test(m.name)" :disabled="testing[m.name]">🧪 ทดสอบ</button>
+              <button class="btn sm ok" x-show="!m.active" @click="use(m.name)">ใช้โมเดลนี้</button>
+              <button class="btn sm danger" x-show="!m.active" @click="del(m.name)">ลบ</button>
+            </td>
+          </tr>
+        </template>
+      </table></div>
+      <template x-for="(t, name) in tests" :key="name">
+        <div class="card mt" x-show="t || testing[name]">
+          <div class="row between"><b x-text="'🧪 ผลทดสอบ ' + name"></b><span class="small muted" x-text="testing[name] || (t && t.ms ? 'ใช้เวลา ' + (t.ms/1000).toFixed(1) + ' วินาที' : '')"></span></div>
+          <template x-if="t && t.error"><div class="alert bad mt" x-text="t.error"></div></template>
+          <template x-if="t && t.questions"><div class="mt">
+            <template x-for="(q, i) in t.questions"><div class="small mb"><b x-text="(i+1) + '. ' + q.prompt"></b>
+              <div class="muted" x-text="q.data.options ? q.data.options.map(o => (q.data.correct.includes(o.id) ? '✅ ' : '▫️ ') + o.text).join('   ') : (q.type === 'truefalse' ? 'คำตอบ: ' + (q.data.correct ? 'ถูก' : 'ผิด') : '')"></div></div></template>
+            <div class="tiny muted">ดูว่าภาษาไทยเป็นธรรมชาติและเฉลยถูกต้องไหม ก่อนกด “ใช้โมเดลนี้”</div>
+          </div></template>
+        </div>
+      </template>
+
+      <div class="row between mt2"><h2 style="margin:0">✨ โมเดลแนะนำ</h2>
+        <span class="tiny muted" x-text="'รายการอัปเดต ' + s.updatedList + ' · แหล่ง: ' + (s.source === 'bundled' ? 'ไฟล์ในระบบ' : s.source)"></span></div>
+      <p class="small muted">เทียบกับ RAM ของเซิร์ฟเวอร์นี้ให้อัตโนมัติ · ★ ภาษาไทย = ความเก่งภาษาไทย · ⚡ = ความเร็วบน CPU</p>
+      <div class="grid">
+        <template x-for="m in s.recos" :key="m.name">
+          <div class="card model-card">
+            <span class="badge fit" :class="fitLabel(m.fit)[0]" x-text="fitLabel(m.fit)[1]"></span>
+            <div class="row" style="gap:6px"><span class="badge grad" x-show="m.tag" x-text="m.tag"></span><span class="badge warn" x-show="m.isNew && !m.installed">NEW</span></div>
+            <h3 style="margin:10px 0 4px" x-text="m.name"></h3>
+            <div class="small muted" x-text="m.note"></div>
+            <div class="small mt">ภาษาไทย <span class="stars" x-text="stars(m.thai)"></span></div>
+            <div class="small">ความเร็ว <span class="stars" style="color:var(--cyan)" x-text="'⚡'.repeat(m.speed||0)"></span></div>
+            <div class="tiny muted mt" x-text="'ดาวน์โหลด ~' + m.size_gb + ' GB · ควรมี RAM ' + m.ram_gb + ' GB'"></div>
+            <div class="mt">
+              <template x-if="m.installed"><span class="badge ok">✓ ติดตั้งแล้ว</span></template>
+              <template x-if="!m.installed && pullOf(m.name) && !pullOf(m.name).done"><div><div class="bar"><i :style="'width:' + pullOf(m.name).percent + '%'"></i></div><div class="tiny muted" x-text="pullOf(m.name).percent + '%'"></div></div></template>
+              <template x-if="!m.installed && !(pullOf(m.name) && !pullOf(m.name).done)"><button class="btn sm primary" @click="pull(m.name)">⬇ ดาวน์โหลด</button></template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div class="card mt2">
+        <h3>➕ ดาวน์โหลดโมเดลอื่นจาก Ollama</h3>
+        <p class="small muted">ดูรายชื่อได้ที่ <a href="https://ollama.com/library" target="_blank" rel="noopener">ollama.com/library</a> แล้วพิมพ์ชื่อพร้อม tag เช่น <code>qwen3:8b</code></p>
+        <div class="row"><input type="text" x-model="custom" placeholder="ชื่อโมเดล เช่น gemma3:12b" style="max-width:320px" @keydown.enter="pull(custom)"><button class="btn primary" @click="pull(custom)">ดาวน์โหลด</button></div>
+        <p class="tiny muted mt">💡 ผู้ดูแลโปรเจกต์อัปเดตรายการแนะนำได้ด้วยการแก้ไฟล์ <code>ai-models.json</code> บน GitHub แล้วทุกเว็บที่ติดตั้ง Exami จะเห็นคำแนะนำใหม่ (อ่านจาก GitHub URL ที่ตั้งไว้ในหน้าตั้งค่า)</p>
+      </div>
+    </div>
+  </template>
+</div>
+<%- include('partials/foot', { noAds: true }) %>

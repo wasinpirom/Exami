@@ -1,0 +1,101 @@
+<%- include('partials/head') %>
+<div class="container page">
+  <div class="welcome">
+    <div class="row between" style="align-items:flex-end">
+      <div>
+        <div class="muted small">แดชบอร์ด</div>
+        <h1>สวัสดี, <%= user.name %> 👋</h1>
+        <div class="muted">วันนี้อยากสร้างอะไรดี?</div>
+        <div class="row mt">
+          <form method="post" action="/exams/new"><button class="btn lg" style="background:#fff;color:#4f46e5!important;border:0">+ สร้างแบบทดสอบ</button></form>
+          <form method="post" action="/courses/new"><button class="btn lg glass">+ สร้างคอร์ส</button></form>
+          <a class="btn lg glass" href="/library">📚 คัดลอกจากคลัง</a>
+        </div>
+      </div>
+      <div class="glass-box">
+        <div class="row between small"><b>💾 พื้นที่เก็บไฟล์</b><span><%= fmtBytes(usage.used) %> / <%= fmtBytes(usage.quota) %></span></div>
+        <div class="bar" style="margin-top:8px"><i style="width:<%= Math.max(usage.percent,1) %>%"></i></div>
+        <div class="tiny" style="margin-top:6px;opacity:.8">รูปในข้อสอบ + ไฟล์คำตอบผู้เรียน · ขอเพิ่ม: LINE OA <%= site.contact_line %></div>
+      </div>
+    </div>
+  </div>
+
+  <% const totalSub = exams.reduce((s,e)=>s+e.submitted,0), totalPend = exams.reduce((s,e)=>s+e.pending,0), totalStu = courses.reduce((s,c)=>s+c.students,0); %>
+  <div class="stats mb">
+    <div class="stat"><b data-count="<%= exams.length %>">0</b><span>แบบทดสอบ</span></div>
+    <div class="stat"><b data-count="<%= totalSub %>">0</b><span>ครั้งที่ส่งคำตอบ</span></div>
+    <div class="stat"><b data-count="<%= totalPend %>">0</b><span>รอตรวจ</span></div>
+    <div class="stat"><b data-count="<%= courses.length %>">0</b><span>คอร์ส</span></div>
+    <div class="stat"><b data-count="<%= totalStu %>">0</b><span>ผู้เรียนในคอร์ส</span></div>
+  </div>
+
+  <div class="row between mt2"><h2 style="margin:0">📝 แบบทดสอบของฉัน</h2></div>
+  <% if (!exams.length) { %>
+    <div class="card mt" style="text-align:center;padding:40px"><div style="font-size:2.6rem">📝</div><h3>ยังไม่มีแบบทดสอบ</h3><p class="muted">เริ่มจากสร้างใหม่ ให้ AI ช่วยออก หรือคัดลอกจากคลังข้อสอบ</p>
+      <form method="post" action="/exams/new"><button class="btn primary">+ สร้างแบบทดสอบแรก</button></form></div>
+  <% } else { %>
+  <div class="grid mt">
+    <% exams.forEach(e => { %>
+    <div class="card exam-card">
+      <div class="row between"><%- e.is_open ? '<span class="badge ok">● เปิดรับคำตอบ</span>' : '<span class="badge">ปิด</span>' %>
+        <span><% if (e.in_library) { %><span class="badge brand">📚 ในคลัง</span><% } %> <% if (e.pending) { %><span class="badge warn">รอตรวจ <%= e.pending %></span><% } %></span></div>
+      <h3><a href="/exams/<%= e.id %>/edit" style="color:var(--ink)!important"><%= e.title %></a></h3>
+      <div class="meta"><span>❓ <%= e.qn %> ข้อ</span><span>📨 ส่งแล้ว <%= e.submitted %></span><span>🕒 <%= fmtDate(e.updated_at) %></span></div>
+      <% if (e.source_owner_name) { %><div class="tiny muted">คัดลอกจาก <%= e.source_owner_name %></div><% } %>
+      <div class="actions">
+        <a class="btn sm" href="/exams/<%= e.id %>/edit">✏️ แก้ไข</a>
+        <a class="btn sm" href="/exams/<%= e.id %>/results">📊 ผลสอบ</a>
+        <a class="btn sm" href="/exams/<%= e.id %>/live">📡 สด</a>
+        <button class="btn sm ghost" onclick="copyText('<%= baseUrl %>/t/<%= e.share_token %>')">🔗</button>
+      </div>
+    </div>
+    <% }) %>
+  </div>
+  <% } %>
+
+  <h2 class="mt2">🎓 คอร์สที่ฉันสอน</h2>
+  <% if (!courses.length) { %><div class="card muted">ยังไม่มีคอร์ส — กด “สร้างคอร์ส” ด้านบนเพื่อเริ่ม</div><% } else { %>
+  <div class="grid">
+    <% courses.forEach(c => { %>
+    <div class="card" style="padding:0;overflow:hidden">
+      <% if (c.cover_url) { %><img src="<%= c.cover_url %>" alt="" style="width:100%;aspect-ratio:16/7;object-fit:cover;display:block"><% } else { %><div class="cover" style="aspect-ratio:16/7;font-size:2.2rem">🎓</div><% } %>
+      <div style="padding:16px 18px">
+        <h3 style="margin:0 0 4px"><a href="/courses/<%= c.id %>/edit" style="color:var(--ink)!important"><%= c.title %></a></h3>
+        <div class="muted small"><%= c.ln %> บทเรียน · ผู้เรียน <%= c.students %> คน <% if (c.requests) { %><span class="badge warn">คำขอ <%= c.requests %></span><% } %></div>
+        <div class="row mt" style="gap:6px">
+          <a class="btn sm" href="/courses/<%= c.id %>/edit">จัดการ</a>
+          <a class="btn sm" href="/courses/<%= c.id %>/students">👥 ผู้เรียน</a>
+          <a class="btn sm" href="/courses/<%= c.id %>/progress">📈 ความก้าวหน้า</a>
+        </div>
+      </div>
+    </div>
+    <% }) %>
+  </div>
+  <% } %>
+
+  <div class="grid-2 mt2">
+    <div>
+      <h2>📖 คอร์สที่ฉันเรียน</h2>
+      <% if (!learning.length) { %><div class="card muted">ยังไม่ได้ลงทะเบียนคอร์สใด — <a href="/courses">ดูคอร์สทั้งหมด</a></div><% } %>
+      <% learning.forEach(c => { const p = c.ln ? Math.round(c.done/c.ln*100) : 0; %>
+        <div class="card pad-sm mb">
+          <div class="row between"><b><%= c.title %></b>
+            <% if (c.status==='approved') { %><a class="btn sm primary" href="/learn/<%= c.id %>"><%= p===100 ? '🎓 ดูเกียรติบัตร' : 'เรียนต่อ →' %></a><% } else { %><span class="badge warn">รออนุมัติ</span><% } %></div>
+          <div class="bar mt"><i style="width:<%= p %>%"></i></div><div class="tiny muted" style="margin-top:4px"><%= c.done %>/<%= c.ln %> บท (<%= p %>%)</div>
+        </div>
+      <% }) %>
+    </div>
+    <div>
+      <h2>🏆 ผลสอบล่าสุดของฉัน</h2>
+      <% if (!results.length) { %><div class="card muted">ยังไม่มีผลสอบ (ผลสอบที่ทำตอนล็อกอินจะแสดงที่นี่)</div><% } %>
+      <% results.forEach(a => { %>
+        <a class="card pad-sm card-link mb" href="/r/<%= a.token %>">
+          <div class="row between"><b><%= a.title %></b>
+            <span><% if (a.status!=='submitted') { %><span class="badge brand">กำลังทำ</span><% } else { %><b><%= a.score %></b>/<%= a.max_score %><% if (a.pending_count) { %> <span class="badge warn">รอตรวจ</span><% } %><% } %></span></div>
+          <div class="tiny muted"><%= fmtDate(a.submitted_at || a.started_at) %></div>
+        </a>
+      <% }) %>
+    </div>
+  </div>
+</div>
+<%- include('partials/foot') %>

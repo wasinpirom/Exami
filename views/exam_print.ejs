@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= exam.title %><%= key ? ' (เฉลย)' : '' %></title>
+<link rel="icon" href="data:,">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body{font:15px/1.7 "Sarabun","TH Sarabun New",sans-serif;color:#000;max-width:800px;margin:0 auto;padding:30px 24px;background:#fff}
+  h1{font-size:22px;text-align:center;margin:0 0 4px} .sub{text-align:center;color:#444;margin-bottom:14px}
+  .info{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;border:1px solid #000;padding:10px 12px;margin-bottom:18px}
+  .q{page-break-inside:avoid;margin-bottom:16px} .q b.n{margin-right:6px}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:2px 24px;margin:6px 0 0 24px}
+  .line{border-bottom:1px dotted #555;height:26px} .key{color:#b00;font-weight:600}
+  img{max-height:220px} .pts{float:right;color:#555;font-size:13px}
+  .bar{position:sticky;top:0;background:#f3f4f6;padding:10px;border-radius:10px;margin-bottom:20px;display:flex;gap:10px;justify-content:center;font-family:sans-serif}
+  .bar button,.bar a{padding:8px 16px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;text-decoration:none;color:#000;font:inherit}
+  @media print{.bar{display:none}body{padding:0}}
+</style></head><body>
+<div class="bar"><button onclick="print()">🖨 พิมพ์ / บันทึก PDF</button><a href="?key=<%= key ? 0 : 1 %>"><%= key ? 'ฉบับไม่มีเฉลย' : 'ฉบับเฉลย' %></a></div>
+<h1><%= exam.title %><%= key ? ' — เฉลย' : '' %></h1>
+<div class="sub"><%= questions.length %> ข้อ · คะแนนเต็ม <%= questions.reduce((s,q)=>s+q.points,0) %> คะแนน<%= exam.settings.time_limit_min ? ' · เวลา ' + exam.settings.time_limit_min + ' นาที' : '' %></div>
+<% if (!key) { %><div class="info"><div>ชื่อ-สกุล ..............................................</div><div>เลขที่ .............</div><div>คะแนน ........./<%= questions.reduce((s,q)=>s+q.points,0) %></div></div><% } %>
+<% if (exam.description) { %><div style="margin-bottom:14px"><%- md(exam.description) %></div><% } %>
+<% const TH='กขคงจฉชซ'; questions.forEach((q, i) => { const d = q.d; %>
+<div class="q">
+  <span class="pts">(<%= q.points %> คะแนน)</span>
+  <b class="n"><%= i+1 %>.</b><% if (q.type==='fillblank') { %><%= q.prompt %><br><% const pb = parseBlanks(d.text||''); pb.parts.forEach((p,k) => { %><%= p %><% if (k < pb.blanks.length) { %><%- key ? '<u class="key">' + pb.blanks[k].join(' / ').replace(/</g,'&lt;') + '</u>' : ' ____________ ' %><% } %><% }) %><% } else { %><span style="white-space:pre-wrap"><%= q.prompt %></span><% } %>
+  <% if (q.image_file_id) { %><div><img src="/files/<%= q.image_file_id %>"></div><% } %>
+  <% if (q.type==='single' || q.type==='multiple') { %><div class="opts"><% (d.options||[]).forEach((o,k) => { const ok = (d.correct||[]).map(String).includes(String(o.id)); %><div class="<%= key && ok ? 'key' : '' %>"><%= TH[k] || k+1 %>. <%= o.text %><%= key && ok ? ' ✓' : '' %></div><% }) %></div><% } %>
+  <% if (q.type==='truefalse') { %><div style="margin-left:24px">( &nbsp; ) ถูก &nbsp;&nbsp;&nbsp; ( &nbsp; ) ผิด <% if (key) { %><span class="key">→ <%= d.correct ? 'ถูก' : 'ผิด' %></span><% } %></div><% } %>
+  <% if (q.type==='matching') { const rights = [...new Set([...(d.pairs||[]).map(p=>p.right), ...(d.distractors||[])])].sort(); %>
+    <div class="opts"><div><% (d.pairs||[]).forEach((p,k) => { %><div>_____ <%= k+1 %>. <%= p.left %></div><% }) %></div><div><% rights.forEach((r,k) => { %><div><%= TH[k] || k+1 %>. <%= r %></div><% }) %></div></div>
+    <% if (key) { %><div class="key" style="margin-left:24px"><%= q.correct %></div><% } %><% } %>
+  <% if (q.type==='ordering') { %><div style="margin-left:24px"><% (d.items||[]).slice().sort((a,b)=>a.text.localeCompare(b.text)).forEach(it => { %><div>_____ <%= it.text %></div><% }) %></div><% if (key) { %><div class="key" style="margin-left:24px"><%= q.correct %></div><% } %><% } %>
+  <% if (q.type==='short') { %><div style="margin-left:24px"><%- key ? '<span class="key">' + String(q.correct).replace(/</g,'&lt;') + '</span>' : 'ตอบ ....................................................' %></div><% } %>
+  <% if (['essay','link','file'].includes(q.type)) { %><% if (key && q.correct) { %><div class="key" style="margin-left:24px;white-space:pre-wrap">แนวคำตอบ: <%= q.correct %></div><% } else if (!key) { for (let k=0;k<(q.type==='essay'?6:2);k++) { %><div class="line"></div><% } } %><% if (key && d.rubric) { %><div style="margin-left:24px;color:#555">เกณฑ์: <%= d.rubric %></div><% } %><% } %>
+  <% if (key && q.explanation) { %><div style="margin-left:24px;color:#555">💡 <%= q.explanation %></div><% } %>
+</div>
+<% }) %>
+<div style="text-align:center;color:#888;font-size:12px;margin-top:30px">สร้างด้วย <%= site.site_name %></div>
+</body></html>

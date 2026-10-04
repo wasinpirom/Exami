@@ -29,7 +29,7 @@ function myAttempts(req, examId) {
 }
 
 r.get('/t/:token', (req, res) => {
-  const e = db.prepare('SELECT id FROM exams WHERE share_token=?').get(req.params.token);
+  const e = db.prepare('SELECT id FROM exams WHERE share_token=? COLLATE NOCASE').get(req.params.token);
   if (!e) return res.status(404).render('error', { title: 'ไม่พบแบบทดสอบ', message: 'ลิงก์แบบทดสอบไม่ถูกต้อง' });
   const exam = getExam(e.id);
   const qs = getQuestions(exam.id);
@@ -42,7 +42,7 @@ r.get('/t/:token', (req, res) => {
 });
 
 r.post('/t/:token/start', (req, res) => {
-  const e = db.prepare('SELECT id FROM exams WHERE share_token=?').get(req.params.token);
+  const e = db.prepare('SELECT id FROM exams WHERE share_token=? COLLATE NOCASE').get(req.params.token);
   if (!e) return res.status(404).render('error', { title: 'ไม่พบแบบทดสอบ', message: 'ลิงก์ไม่ถูกต้อง' });
   const exam = getExam(e.id); const s = exam.settings;
   const back = (m) => res.redirect(`/t/${req.params.token}?err=${encodeURIComponent(m)}`);

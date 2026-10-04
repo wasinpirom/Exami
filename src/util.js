@@ -97,4 +97,11 @@ function fmtDate(s) {
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-module.exports = { token, parseJSON, getSettings, setSetting, SETTING_DEFAULTS, md, videoEmbed, youtubeId, safeUrl, fmtBytes, fmtDate, round2 };
+// Custom share links (e.g. /c/OS2569, /t/OS-MIDTERM): letters, digits, - and _ ; 3–40 chars; unique ignoring case
+function slugError(slug, table, selfId) {
+  const { db } = require('./db');
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{2,39}$/.test(slug)) return 'ลิงก์ต้องยาว 3–40 ตัว ใช้ได้เฉพาะ a–z, 0–9, - และ _ (ห้ามเว้นวรรค/ภาษาไทย)';
+  if (db.prepare(`SELECT id FROM ${table} WHERE share_token=? COLLATE NOCASE AND id<>?`).get(slug, selfId)) return `ลิงก์ “${slug}” มีคนใช้แล้ว ลองชื่ออื่น`;
+  return null;
+}
+module.exports = { slugError, token, parseJSON, getSettings, setSetting, SETTING_DEFAULTS, md, videoEmbed, youtubeId, safeUrl, fmtBytes, fmtDate, round2 };

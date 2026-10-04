@@ -355,3 +355,9 @@ footer .container{display:flex;justify-content:space-between;gap:16px;flex-wrap:
 .title-edit span{opacity:.5;font-size:1rem}
 .new-dlg{border:0;padding:0;background:transparent;width:min(480px,92vw);max-width:92vw}
 .new-dlg::backdrop{background:rgba(8,10,25,.55);backdrop-filter:blur(4px)}
+
+/* custom link box: [exami.org/c/][slug][เปลี่ยน] */
+.slugbox{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden;margin-top:6px}
+.slugbox>span{padding:0 4px 0 12px;color:var(--muted);font-size:.9rem;white-space:nowrap}
+.slugbox input{border:0!important;box-shadow:none!important;background:transparent!important;padding-left:0!important;flex:1;min-width:60px;font-weight:600}
+.slugbox .btn{margin:4px;flex:none}

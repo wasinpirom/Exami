@@ -19,6 +19,7 @@
       <a class="btn" href="/exams/<%= exam.id %>/results">📊 ผลสอบ</a>
       <a class="btn" href="/exams/<%= exam.id %>/live">📡 ติดตามสด</a>
       <a class="btn" href="/t/<%= exam.share_token %>" target="_blank">👁 ดูตัวอย่าง</a>
+      <form method="post" action="/exams/<%= exam.id %>/delete" onsubmit="return confirm('ลบแบบทดสอบนี้และผลสอบทั้งหมดถาวร? (กู้คืนไม่ได้)')"><button class="btn danger" title="ลบแบบทดสอบ">🗑</button></form>
       <button class="btn primary" @click="save()" :disabled="saving" x-text="saving ? 'กำลังบันทึก...' : (dirty ? '💾 บันทึก*' : '💾 บันทึกแล้ว')"></button>
     </div>
   </div>
@@ -202,6 +203,12 @@
     <div class="card">
       <h3>🔗 ลิงก์ให้ผู้เรียนทำแบบทดสอบ</h3>
       <div class="copybox"><input type="text" readonly :value="shareUrl" @focus="$event.target.select()"><button class="btn" @click="copyText(shareUrl)">คัดลอก</button></div>
+      <% if (linkOk) { %><div class="alert ok small mt">✅ เปลี่ยนลิงก์แล้ว (ลิงก์เดิมใช้ไม่ได้แล้ว)</div><% } %>
+      <% if (linkErr) { %><div class="alert bad small mt">⚠️ <%= linkErr %></div><% } %>
+      <form method="post" action="/exams/<%= exam.id %>/link" class="mt" onsubmit="return this.slug.value===this.slug.defaultValue||confirm('เปลี่ยนลิงก์? ลิงก์เดิมที่เคยแชร์ไปจะใช้ไม่ได้อีก')">
+        <label class="small"><b>ตั้งชื่อลิงก์เอง</b> <span class="hint">(เช่น OS-MIDTERM)</span></label>
+        <div class="slugbox"><span>/t/</span><input type="text" name="slug" value="<%= exam.share_token %>" required minlength="3" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{2,39}" title="3–40 ตัว: a–z, 0–9, - และ _" autocomplete="off" spellcheck="false"><button class="btn sm">เปลี่ยน</button></div>
+      </form>
       <div class="qr mt"><div id="qr" style="width:180px"></div></div>
       <div class="row mt"><a class="btn sm" href="/exams/<%= exam.id %>/print" target="_blank">🖨 พิมพ์ข้อสอบ (กระดาษ)</a><a class="btn sm" href="/exams/<%= exam.id %>/print?key=1" target="_blank">🔑 พิมพ์เฉลย</a></div>
       <div class="row">
@@ -236,7 +243,7 @@
             <label class="check small" style="margin:0"><input type="checkbox" :value="k" x-model="ai.types"> <span x-text="typeLabel(k)"></span></label>
           </template></div></div>
         <div class="row">
-          <div class="field"><label>จำนวนข้อ</label><input type="number" min="1" max="30" x-model.number="ai.count" style="width:90px"></div>
+          <div class="field"><label>จำนวนข้อ <span class="tiny muted">(สูงสุด 20)</span></label><input type="number" min="1" max="20" x-model.number="ai.count" @change="ai.count=Math.min(20,Math.max(1,parseInt(ai.count)||5))" style="width:90px"></div>
           <div class="field"><label>ความยาก</label><select x-model="ai.difficulty"><option value="easy">ง่าย</option><option value="medium">ปานกลาง</option><option value="hard">ยาก</option></select></div>
           <div class="field"><label>ภาษา</label><select x-model="ai.language"><option value="th">ไทย</option><option value="en">English</option></select></div>
           <div class="field"><label>คะแนน/ข้อ</label><input type="number" min="0" x-model.number="ai.points" style="width:80px"></div>

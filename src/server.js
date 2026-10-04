@@ -50,6 +50,10 @@ app.use((err, req, res, next) => {
   res.status(status).render('error', { title: 'เกิดข้อผิดพลาด', message });
 });
 
+// Safety net: log unexpected errors instead of crashing the whole site (which shows "Bad Gateway")
+process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e && e.stack || e));
+process.on('uncaughtException', (e) => console.error('[uncaughtException]', e && e.stack || e));
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Exami running on http://localhost:${PORT}`));
 setInterval(cleanupOrphans, 6 * 3600e3);

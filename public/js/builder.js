@@ -79,7 +79,7 @@ function parseExamText(text) {
 function builder() {
   const init = JSON.parse(document.getElementById('init').textContent);
   return {
-    tab: 'questions',
+    tab: location.hash === '#share' ? 'share' : 'questions',
     exam: init.exam,
     questions: init.questions.map(toEditor),
     types: init.types,
@@ -158,14 +158,17 @@ function builder() {
 
     // ---- AI ----
     async aiGenerate() {
-      const a = this.ai; a.error = ''; a.results = []; a.busy = true; a.status = 'ส่งงานให้ AI...';
+      const a = this.ai; a.error = ''; a.results = [];
+      if ((parseInt(a.count) || 0) > 20) toast('สร้างได้ครั้งละไม่เกิน 20 ข้อ — ต้องการมากกว่านี้กดสร้างซ้ำได้เลย');
+      a.count = Math.min(20, Math.max(1, parseInt(a.count) || 5));
+      a.busy = true; a.status = 'ส่งงานให้ AI...';
       try {
         const { job_id } = await api('/api/ai/generate', { body: { topic: a.topic, source_text: a.source_text, count: a.count, types: a.types, difficulty: a.difficulty, language: a.language, points: a.points } });
         const res = await waitJob(job_id, (j) => {
           a.status = j.status === 'queued' ? `รอคิว AI${j.position ? ' (ลำดับที่ ' + j.position + ')' : ''}...` : (j.progress || '⏳ กำลังโหลดโมเดล AI เข้าหน่วยความจำ... (ครั้งแรกอาจใช้เวลาสักครู่)');
         });
         a.results = (res || []).map(q => ({ ...toEditor(q), pick: true }));
-        a.status = a.results.length ? `ได้ ${a.results.length} ข้อ — ตรวจทานแล้วกดเพิ่ม` : 'AI ไม่ได้สร้างคำถาม ลองปรับหัวข้อแล้วลองใหม่';
+        a.status = a.results.length ? `ได้ ${a.results.length}${a.results.length < a.count ? '/' + a.count : ''} ข้อ — ตรวจทานแล้วกดเพิ่ม` : 'AI ไม่ได้สร้างคำถาม ลองปรับหัวข้อแล้วลองใหม่';
       } catch (e) { a.error = e.message; a.status = ''; }
       a.busy = false;
     },

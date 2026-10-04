@@ -2,7 +2,7 @@
 const express = require('express');
 const { db } = require('../db');
 const { requireLogin } = require('../auth');
-const { parseJSON, round2, token, fmtDate } = require('../util');
+const { slugError, parseJSON, round2, token, fmtDate } = require('../util');
 const svc = require('../examService');
 const { TYPES, finalScore, recomputeAttempt, responseText, correctAnswerText } = require('../grading');
 const { upload, registerFile, usage } = require('../storage');
@@ -27,7 +27,7 @@ r.post('/exams/new', requireLogin, (req, res) => {
 r.get('/exams/:id/edit', requireLogin, async (req, res) => {
   const exam = ownExam(req, res);
   const questions = svc.getQuestions(exam.id).map(q => ({ ...q, data: parseJSON(q.data, {}) }));
-  res.render('exam_edit', { title: 'แก้ไข: ' + exam.title, exam, questions, TYPES, usage: usage(exam.owner_id), aiEnabled: ai.AI.enabled, aiModel: ai.AI.model, copied: !!req.query.copied });
+  res.render('exam_edit', { title: 'แก้ไข: ' + exam.title, exam, questions, TYPES, usage: usage(exam.owner_id), aiEnabled: ai.AI.enabled, aiModel: ai.AI.model, copied: !!req.query.copied, linkErr: req.query.lerr || null, linkOk: !!req.query.lok });
 });
 
 r.put('/api/exams/:id', requireLogin, (req, res) => {
@@ -63,6 +63,14 @@ r.post('/exams/:id/toggle', requireLogin, (req, res) => {
   const e = ownExam(req, res);
   db.prepare('UPDATE exams SET is_open=? WHERE id=?').run(e.is_open ? 0 : 1, e.id);
   res.redirect(req.get('referer') || `/exams/${e.id}/results`);
+});
+r.post('/exams/:id/link', requireLogin, (req, res) => {
+  const e = ownExam(req, res); const slug = String(req.body.slug || '').trim();
+  if (slug === e.share_token) return res.redirect(`/exams/${e.id}/edit#share`);
+  const err = slugError(slug, 'exams', e.id);
+  if (err) return res.redirect(`/exams/${e.id}/edit?lerr=${encodeURIComponent(err)}#share`);
+  db.prepare('UPDATE exams SET share_token=? WHERE id=?').run(slug, e.id);
+  res.redirect(`/exams/${e.id}/edit?lok=1#share`);
 });
 r.post('/exams/:id/new-link', requireLogin, (req, res) => {
   const e = ownExam(req, res);

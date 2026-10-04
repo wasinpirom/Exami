@@ -47,6 +47,7 @@
         <a class="btn sm" href="/exams/<%= e.id %>/results">📊 ผลสอบ</a>
         <a class="btn sm" href="/exams/<%= e.id %>/live">📡 สด</a>
         <button class="btn sm ghost" onclick="copyText('<%= baseUrl %>/t/<%= e.share_token %>')">🔗</button>
+        <form method="post" action="/exams/<%= e.id %>/delete" style="margin-left:auto" onsubmit="return confirm('ลบแบบทดสอบ “<%= e.title.replace(/[\x27\x22\\]/g,'') %>” และผลสอบทั้งหมดถาวร?\n(กู้คืนไม่ได้)')"><button class="btn sm ghost" title="ลบแบบทดสอบ" style="color:var(--bad)">🗑</button></form>
       </div>
     </div>
     <% }) %>

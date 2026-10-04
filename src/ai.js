@@ -157,41 +157,59 @@ const TYPE_SPEC = {
 };
 const EXAMPLE = '{"questions":[{"type":"single","prompt":"เมืองหลวงของประเทศญี่ปุ่นคือเมืองใด","options":["โอซาก้า","โตเกียว","เกียวโต","ซัปโปโร"],"correct_index":1,"explanation":"โตเกียวเป็นเมืองหลวงของญี่ปุ่น"}]}';
 
+const MAX_PER_REQUEST = 20;   // questions per click (UI + server)
+const BATCH_SIZE = 5;         // questions per AI call
 async function generateQuestions(input, opts = {}) {
   const convert = input.mode === 'convert';
-  const count = Math.min(Math.max(parseInt(input.count) || 5, 1), convert ? 100 : 30);
+  const count = Math.min(Math.max(parseInt(input.count) || 5, 1), convert ? 100 : MAX_PER_REQUEST);
   const types = convert ? Object.keys(TYPE_SPEC) : (input.types || ['single']).filter(t => TYPE_SPEC[t]);
   if (!types.length) types.push('single');
   const lang = input.language === 'en' ? 'English' : 'Thai (ภาษาไทย)';
   const sys = `You are an expert teacher who writes high-quality exam questions. Always reply with ONE JSON object only: {"questions":[...]}. Each question must follow exactly one of these formats:\n${types.map(t => TYPE_SPEC[t]).join('\n')}\nReplace every <...> with real content. Choices must be complete, meaningful answers — NEVER just letters like "A", "B", "C", "D" or "ก", "ข". Example of ONE correct question (format only, do not copy its content): ${EXAMPLE}. ${convert ? 'Keep the original language and wording.' : `Write all question text in ${lang}. Facts must be accurate.`}`;
-  const user = convert ? [
-    'Convert the following existing exam (copied from Word/PDF) into the JSON format. Do NOT invent new questions and keep the original wording.',
-    'Detect the correct answers from answer keys, marks like * or (✓), or "ตอบ/เฉลย/Answer" lines. If a question has no answer key, pick the most correct answer yourself.',
-    'Choose the best matching type for each question (multiple-choice → single or multiple, true/false → truefalse, blank lines → fillblank, open questions → essay).',
-    `Exam text:\n"""\n${String(input.source_text).slice(0, 20000)}\n"""`,
-  ].join('\n') : [
-    `Create exactly ${count} questions. Use a mix of these types: ${types.join(', ')}.`,
+  const pts = Number(input.points) || 1;
+  const ask = async (userMsg, maxTokens, onProgress) => {
+    const out = extractJSON(await chat([{ role: 'system', content: sys }, { role: 'user', content: userMsg }], { temperature: convert ? 0.1 : 0.6, model: opts.model, maxTokens, onProgress }));
+    const list = Array.isArray(out) ? out : (out.questions || []);
+    return list.map(q => normalizeGenerated(q, pts)).filter(Boolean);
+  };
+  const say = (prefix) => opts.progress ? (n, phase) => opts.progress(`${prefix}${phase === 'thinking' ? '🤔 AI กำลังคิด...' : `✍️ AI กำลังเขียนคำถาม... (${n} tokens)`}`) : null;
+
+  if (convert) {
+    const user = [
+      'Convert the following existing exam (copied from Word/PDF) into the JSON format. Do NOT invent new questions and keep the original wording.',
+      'Detect the correct answers from answer keys, marks like * or (✓), or "ตอบ/เฉลย/Answer" lines. If a question has no answer key, pick the most correct answer yourself.',
+      'Choose the best matching type for each question (multiple-choice → single or multiple, true/false → truefalse, blank lines → fillblank, open questions → essay).',
+      `Exam text:\n"""\n${String(input.source_text).slice(0, 20000)}\n"""`,
+    ].join('\n');
+    const result = await ask(user, 8192, say(''));
+    if (!result.length) throw new Error('AI แปลงข้อสอบไม่สำเร็จ ลองใหม่อีกครั้ง หรือใช้ “วางข้อความ” แบบไม่ใช้ AI');
+    return result.slice(0, count);
+  }
+
+  // Generate in small batches: short answers are fast & reliable on CPU, and a failure never loses earlier batches
+  const base = [
     `Difficulty: ${input.difficulty || 'medium'}.`,
     input.topic ? `Topic: ${input.topic}` : '',
     input.source_text ? `Base the questions ONLY on this material:\n"""\n${String(input.source_text).slice(0, 12000)}\n"""` : '',
   ].filter(Boolean).join('\n');
-  const maxTokens = convert ? 8192 : Math.min(8192, 450 * count + 500);
-  const onProgress = opts.progress ? (n, phase) => opts.progress(phase === 'thinking' ? '🤔 AI กำลังคิด...' : `✍️ AI กำลังเขียนคำถาม... (${n} tokens)`) : null;
-  const pts = Number(input.points) || 1;
-  const ask = async (extra) => {
-    const out = extractJSON(await chat([{ role: 'system', content: sys }, { role: 'user', content: user + (extra || '') }], { temperature: convert ? 0.1 : 0.6, model: opts.model, maxTokens, onProgress }));
-    const list = Array.isArray(out) ? out : (out.questions || []);
-    return list.map(q => normalizeGenerated(q, pts)).filter(Boolean);
-  };
-  let result = await ask();
-  // small models sometimes return placeholder choices ("A","B"…) → those get dropped; ask once more for the missing ones
-  if (!convert && result.length < count) {
-    try {
-      const more = await ask(`\nIMPORTANT: every answer choice must be real content, not letters. Create ${count - result.length} question(s).`);
-      result = result.concat(more);
-    } catch (e) { if (!result.length) throw e; }
+  const batches = Math.ceil(count / BATCH_SIZE);
+  let result = [], lastErr = null;
+  for (let b = 0; b < batches && result.length < count; b++) {
+    const need = Math.min(BATCH_SIZE, count - result.length);
+    const prefix = batches > 1 ? `ชุดที่ ${b + 1}/${batches} · ` : '';
+    const avoid = result.length ? `\nDo NOT repeat these existing questions:\n${result.map(q => '- ' + String(q.prompt || q.data.text || '').slice(0, 120)).join('\n')}` : '';
+    const msg = `Create exactly ${need} questions. Use a mix of these types: ${types.join(', ')}.\n${base}${avoid}`;
+    let got = [];
+    for (let attempt = 0; attempt < 2 && got.length === 0; attempt++) {   // at most one retry per batch
+      try {
+        got = await ask(msg + (attempt ? '\nIMPORTANT: every answer choice must be real content, not letters.' : ''), 450 * need + 500, say(prefix));
+      } catch (e) { lastErr = e; if (/เชื่อมต่อ|ปิดใช้งาน/.test(e.message)) break; }
+    }
+    if (!got.length && lastErr && /เชื่อมต่อ|ปิดใช้งาน/.test(lastErr.message)) break;
+    const seen = new Set(result.map(q => q.prompt));
+    result = result.concat(got.slice(0, need).filter(q => !seen.has(q.prompt)));
   }
-  if (!result.length) throw new Error('AI สร้างคำถามที่ใช้ได้ไม่สำเร็จ ลองใหม่อีกครั้ง หรือเปลี่ยนเป็นโมเดลที่ใหญ่ขึ้นในหน้า จัดการโมเดล AI');
+  if (!result.length) throw lastErr || new Error('AI สร้างคำถามที่ใช้ได้ไม่สำเร็จ ลองใหม่อีกครั้ง หรือเปลี่ยนเป็นโมเดลที่ใหญ่ขึ้นในหน้า จัดการโมเดล AI');
   return result.slice(0, count);
 }
 

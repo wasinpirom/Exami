@@ -9,6 +9,7 @@
       <a class="btn" href="/exams/<%= exam.id %>/edit">✏ แก้ไขข้อสอบ</a>
       <a class="btn" href="/exams/<%= exam.id %>/live">📡 ติดตามสด</a>
       <a class="btn" href="/exams/<%= exam.id %>/print" target="_blank">🖨 พิมพ์</a>
+      <form method="post" action="/exams/<%= exam.id %>/delete" onsubmit="return confirm('ลบแบบทดสอบนี้และผลสอบทั้งหมดถาวร? (กู้คืนไม่ได้)')"><button class="btn danger">🗑 ลบแบบทดสอบ</button></form>
       <a class="btn" href="/exams/<%= exam.id %>/results.csv">⬇ ส่งออก CSV (Excel)</a>
       <form method="post" action="/exams/<%= exam.id %>/regrade" onsubmit="return confirm('ตรวจข้อปรนัยใหม่ทั้งหมดตามเฉลยปัจจุบัน? (คะแนนที่คุณให้เองจะไม่ถูกเปลี่ยน)')"><button class="btn">🔄 ตรวจใหม่ตามเฉลย</button></form>
       <% if (aiEnabled && stats.pending) { %><button class="btn ai" id="aiAll" onclick="aiGradeAll()">🤖 ให้ AI ตรวจข้อที่รอตรวจทั้งหมด (<%= stats.pending %> คน)</button><% } %>

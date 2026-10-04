@@ -3,7 +3,7 @@
 const express = require('express');
 const { db } = require('../db');
 const { requireLogin } = require('../auth');
-const { token, parseJSON, safeUrl, videoEmbed, youtubeId } = require('../util');
+const { slugError, token, parseJSON, safeUrl, videoEmbed, youtubeId } = require('../util');
 
 const r = express.Router();
 const sqlNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -36,7 +36,7 @@ r.post('/courses/new', requireLogin, (req, res) => {
 r.get('/courses/:id/edit', requireLogin, (req, res) => {
   const course = ownCourse(req);
   const lessons = lessonsOf(course.id);
-  res.render('course_edit', { title: 'จัดการคอร์ส: ' + course.title, course, lessons, saved: !!req.query.saved });
+  res.render('course_edit', { title: 'จัดการคอร์ส: ' + course.title, course, lessons, saved: !!req.query.saved, linkErr: req.query.lerr || null, linkOk: !!req.query.lok });
 });
 
 r.post('/courses/:id', requireLogin, (req, res) => {
@@ -45,6 +45,14 @@ r.post('/courses/:id', requireLogin, (req, res) => {
     .run(String(b.title || c.title).slice(0, 300), String(b.description || '').slice(0, 20000), safeUrl(b.cover_url),
       b.require_approval ? 1 : 0, b.is_listed ? 1 : 0, c.id);
   res.redirect(`/courses/${c.id}/edit?saved=1`);
+});
+r.post('/courses/:id/link', requireLogin, (req, res) => {
+  const c = ownCourse(req); const slug = String(req.body.slug || '').trim();
+  if (slug === c.share_token) return res.redirect(`/courses/${c.id}/edit`);
+  const err = slugError(slug, 'courses', c.id);
+  if (err) return res.redirect(`/courses/${c.id}/edit?lerr=${encodeURIComponent(err)}`);
+  db.prepare('UPDATE courses SET share_token=? WHERE id=?').run(slug, c.id);
+  res.redirect(`/courses/${c.id}/edit?lok=1`);
 });
 r.post('/courses/:id/delete', requireLogin, (req, res) => { const c = ownCourse(req); db.prepare('DELETE FROM courses WHERE id=?').run(c.id); res.redirect('/dashboard'); });
 
@@ -167,13 +175,13 @@ r.get('/courses', (req, res) => {
 });
 
 r.get('/c/:token', (req, res) => {
-  const course = db.prepare('SELECT c.*, u.name owner_name FROM courses c JOIN users u ON u.id=c.owner_id WHERE share_token=?').get(req.params.token);
+  const course = db.prepare('SELECT c.*, u.name owner_name FROM courses c JOIN users u ON u.id=c.owner_id WHERE share_token=? COLLATE NOCASE').get(req.params.token);
   if (!course) return res.status(404).render('error', { title: 'ไม่พบคอร์ส', message: 'ลิงก์ไม่ถูกต้อง' });
   res.render('course_landing', { title: course.title, course, lessons: lessonsOf(course.id), en: enrollment(course.id, req.user), canLearn: canLearn(course, req.user) });
 });
 
 r.post('/c/:token/enroll', requireLogin, (req, res) => {
-  const course = db.prepare('SELECT * FROM courses WHERE share_token=?').get(req.params.token);
+  const course = db.prepare('SELECT * FROM courses WHERE share_token=? COLLATE NOCASE').get(req.params.token);
   if (!course) return res.status(404).render('error', { title: 'ไม่พบคอร์ส', message: '' });
   const en = enrollment(course.id, req.user);
   if (!en) db.prepare('INSERT INTO enrollments(course_id,user_id,status) VALUES(?,?,?)').run(course.id, req.user.id, course.require_approval ? 'pending' : 'approved');

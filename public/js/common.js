@@ -18,8 +18,10 @@ window.copyText = function (text) {
 };
 // Poll an AI job until done
 window.waitJob = async function (id, onTick) {
-  for (let i = 0; i < 600; i++) {
-    const j = await api('/api/jobs/' + id);
+  // keep waiting while the server says the job is alive (server has its own idle timeout); hard stop after 2h
+  for (let i = 0; i < 3600; i++) {
+    let j;
+    try { j = await api('/api/jobs/' + id); } catch (e) { if (i && /Bad Gateway|fetch|network|50\d/i.test(e.message)) { await new Promise(r => setTimeout(r, 4000)); continue; } throw e; }
     if (onTick) onTick(j);
     if (j.status === 'done') return j.result;
     if (j.status === 'error') throw new Error(j.error || 'AI error');
